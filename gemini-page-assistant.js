@@ -5,8 +5,18 @@
  *  - Reads the visible TEXT of the current page (document.body.innerText)
  *    and/or captures an actual SCREENSHOT (via getDisplayMedia), and sends
  *    either or both to Gemini to summarize, analyze, or answer questions.
- *  - A general "Ask AI" chat tab, independent of page content.
- *  - A "Theme" tab to change the panel's color scheme.
+ *  - A general "Ask AI" chat section, independent of page content.
+ *  - A "SoundCloud" section using SoundCloud's own official embeddable
+ *    player — no proxy or scraping, just their public embed API.
+ *  - A "Browser" section: a plain iframe with a URL bar. It only loads
+ *    sites that allow being embedded (most publisher sites, wikis,
+ *    many docs sites). Sites that set X-Frame-Options / CSP
+ *    frame-ancestors to block embedding — banks, most social apps,
+ *    soundcloud.com's own site — won't load here. That's a security
+ *    protection those sites intentionally set, and this script does not
+ *    attempt to circumvent it.
+ *  - A "Theme" section to change the panel's color scheme.
+ *  - All sections are switched via a dropdown in place of tabs.
  *  - Draggable panel, minimize/restore toggle.
  *
  * SETUP
@@ -95,10 +105,18 @@
       <button id="gpa-close" title="Close">&times;</button>
     </div>
     <div class="gpa-body" id="gpa-body">
-      <div class="gpa-tabs">
-        <button class="gpa-tab active" data-tab="scan">Scan &amp; Analyze</button>
-        <button class="gpa-tab" data-tab="ask">Ask AI</button>
-        <button class="gpa-tab" data-tab="theme">Theme</button>
+      <div class="gpa-dropdown" id="gpa-dropdown">
+        <button class="gpa-dropdown-btn" id="gpa-dropdown-btn">
+          <span id="gpa-dropdown-label">Scan &amp; Analyze</span>
+          <svg class="gpa-chevron" viewBox="0 0 20 20" width="13" height="13"><path d="M5 7l5 6 5-6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="gpa-dropdown-menu" id="gpa-dropdown-menu">
+          <button class="gpa-dropdown-item active" data-tab="scan">Scan &amp; Analyze</button>
+          <button class="gpa-dropdown-item" data-tab="ask">Ask AI</button>
+          <button class="gpa-dropdown-item" data-tab="soundcloud">SoundCloud</button>
+          <button class="gpa-dropdown-item" data-tab="browser">Browser</button>
+          <button class="gpa-dropdown-item" data-tab="theme">Theme</button>
+        </div>
       </div>
 
       <div class="gpa-pane active" data-pane="scan">
@@ -128,6 +146,24 @@
           <input id="gpa-ask-input" class="gpa-input" placeholder="Ask me anything…" />
           <button id="gpa-ask-btn" class="gpa-btn primary">Send</button>
         </div>
+      </div>
+
+      <div class="gpa-pane" data-pane="soundcloud">
+        <div class="gpa-row">
+          <input id="gpa-sc-url" class="gpa-input" placeholder="Paste a SoundCloud track or playlist link…" />
+          <button id="gpa-sc-load" class="gpa-btn primary">Load</button>
+        </div>
+        <div class="gpa-sub" style="margin-bottom:8px;">Uses SoundCloud's own official embeddable player.</div>
+        <div id="gpa-sc-wrap" class="gpa-sc-wrap"></div>
+      </div>
+
+      <div class="gpa-pane" data-pane="browser">
+        <div class="gpa-row">
+          <input id="gpa-browser-url" class="gpa-input" placeholder="Enter a URL…" />
+          <button id="gpa-browser-go" class="gpa-btn primary">Go</button>
+        </div>
+        <div class="gpa-sub" style="margin-bottom:8px;">Sites that block embedding (banks, most social apps, soundcloud.com itself) won't load here — that's a security setting on their end which this doesn't try to bypass. Use the SoundCloud tab for actual SoundCloud playback.</div>
+        <iframe id="gpa-browser-frame" class="gpa-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>
       </div>
 
       <div class="gpa-pane" data-pane="theme">
@@ -202,13 +238,41 @@
       }
       #gpa-close:hover { background: #e5453a; border-color: #e5453a; color: #fff; }
       .gpa-body { padding: 10px; user-select: text; flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
-      .gpa-tabs { display: flex; gap: 4px; margin-bottom: 10px; flex-shrink: 0; }
-      .gpa-tab {
-        flex: 1; padding: 6px 4px; font-size: 11px; font-weight: 600;
-        border: 1px solid ${t.border}; background: ${t.field}; color: ${t.sub};
-        border-radius: 7px; cursor: pointer;
+      .gpa-dropdown { position: relative; margin-bottom: 10px; flex-shrink: 0; }
+      .gpa-dropdown-btn {
+        width: 100%; display: flex; align-items: center; justify-content: space-between;
+        padding: 9px 12px; font-size: 12.5px; font-weight: 700; letter-spacing: 0.2px;
+        border-radius: 9px; cursor: pointer; color: ${t.text};
+        border: 1px solid ${t.border};
+        background: linear-gradient(180deg, ${t.field}, ${t.panel});
+        box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
       }
-      .gpa-tab.active { color: ${t.text}; border-color: ${t.accent}; }
+      .gpa-dropdown-btn:hover { border-color: ${t.accent}; }
+      .gpa-dropdown.open .gpa-dropdown-btn {
+        border-color: ${t.accent};
+        box-shadow: 0 0 0 3px ${t.accent}33;
+      }
+      .gpa-chevron { color: ${t.accent}; flex-shrink: 0; transition: transform 0.18s ease; }
+      .gpa-dropdown.open .gpa-chevron { transform: rotate(180deg); }
+      .gpa-dropdown-menu {
+        position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 5;
+        background: ${t.panel}; border: 1px solid ${t.border}; border-radius: 10px;
+        box-shadow: 0 14px 30px rgba(0,0,0,0.5);
+        overflow: hidden; opacity: 0; transform: translateY(-4px) scale(0.98);
+        pointer-events: none; transition: opacity 0.14s ease, transform 0.14s ease;
+      }
+      .gpa-dropdown.open .gpa-dropdown-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+      .gpa-dropdown-item {
+        display: block; width: 100%; text-align: left; padding: 9px 12px;
+        font-size: 12px; font-weight: 600; color: ${t.sub};
+        background: transparent; border: none; border-bottom: 1px solid ${t.border};
+        cursor: pointer;
+      }
+      .gpa-dropdown-item:last-child { border-bottom: none; }
+      .gpa-dropdown-item:hover { background: ${t.field}; color: ${t.text}; }
+      .gpa-dropdown-item.active { color: ${t.accent}; }
+      .gpa-dropdown-item.active::before { content: '● '; }
       .gpa-pane { display: none; }
       .gpa-pane.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
       .gpa-row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-shrink: 0; }
@@ -256,6 +320,12 @@
         border-radius: 6px; border: 1px solid ${t.border}; flex-shrink: 0;
       }
       #gpa-thumb.show { display: block; }
+      .gpa-iframe {
+        flex: 1; width: 100%; min-height: 120px; border-radius: 8px;
+        border: 1px solid ${t.border}; background: #000;
+      }
+      .gpa-sc-wrap { flex: 1; overflow-y: auto; }
+      .gpa-sc-frame { width: 100%; height: 166px; border: 0; border-radius: 8px; }
     `;
   }
   applyTheme(theme);
@@ -316,13 +386,27 @@
     panel.style.border = v ? 'none' : '';
   }
 
-  // ---- Tabs -------------------------------------------------------------
-  panel.querySelectorAll('.gpa-tab').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      panel.querySelectorAll('.gpa-tab').forEach((b) => b.classList.remove('active'));
+  // ---- Dropdown section switcher -----------------------------------------
+  const dropdown = panel.querySelector('#gpa-dropdown');
+  const dropdownBtn = panel.querySelector('#gpa-dropdown-btn');
+  const dropdownLabel = panel.querySelector('#gpa-dropdown-label');
+
+  dropdownBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdown.classList.toggle('open');
+  });
+  root.addEventListener('click', (e) => {
+    if (!e.target.closest('#gpa-dropdown')) dropdown.classList.remove('open');
+  });
+
+  panel.querySelectorAll('.gpa-dropdown-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      panel.querySelectorAll('.gpa-dropdown-item').forEach((b) => b.classList.remove('active'));
       panel.querySelectorAll('.gpa-pane').forEach((p) => p.classList.remove('active'));
-      btn.classList.add('active');
-      panel.querySelector(`.gpa-pane[data-pane="${btn.dataset.tab}"]`).classList.add('active');
+      item.classList.add('active');
+      panel.querySelector(`.gpa-pane[data-pane="${item.dataset.tab}"]`).classList.add('active');
+      dropdownLabel.textContent = item.textContent;
+      dropdown.classList.remove('open');
     });
   });
 
@@ -510,6 +594,38 @@
       scanOutput.textContent = 'Error: ' + e.message;
     }
   }
+
+  // ---- SoundCloud tab (official embeddable player, no proxy) ------------
+  const scInput = panel.querySelector('#gpa-sc-url');
+  const scLoadBtn = panel.querySelector('#gpa-sc-load');
+  const scWrap = panel.querySelector('#gpa-sc-wrap');
+
+  function loadSoundCloud() {
+    const url = scInput.value.trim();
+    if (!/^https?:\/\/(www\.)?(soundcloud\.com|on\.soundcloud\.com)\//i.test(url)) {
+      scWrap.textContent = 'Paste a valid soundcloud.com track or playlist link.';
+      return;
+    }
+    const accentHex = THEMES[theme].accent.replace('#', '');
+    const embedSrc = `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%23${accentHex}&auto_play=false&show_user=true&show_reposts=false&visual=false`;
+    scWrap.innerHTML = `<iframe class="gpa-sc-frame" scrolling="no" frameborder="no" allow="autoplay" src="${embedSrc}"></iframe>`;
+  }
+  scLoadBtn.addEventListener('click', loadSoundCloud);
+  scInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadSoundCloud(); });
+
+  // ---- Browser tab (plain iframe — only loads sites that allow embedding) --
+  const browserUrlInput = panel.querySelector('#gpa-browser-url');
+  const browserGoBtn = panel.querySelector('#gpa-browser-go');
+  const browserFrame = panel.querySelector('#gpa-browser-frame');
+
+  function loadBrowserUrl() {
+    let url = browserUrlInput.value.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    browserFrame.src = url;
+  }
+  browserGoBtn.addEventListener('click', loadBrowserUrl);
+  browserUrlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadBrowserUrl(); });
 
   // ---- Ask AI tab (general chat) -----------------------------------------
   const chatEl = panel.querySelector('#gpa-chat');
