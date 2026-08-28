@@ -46,7 +46,7 @@
   'use strict';
 
   // ---- Config -------------------------------------------------------
-  const MODEL = 'gemini-2.0-flash';
+  const MODEL = 'gemini-3.6-flash';
   const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
   const STORAGE_KEY = 'gpa_gemini_api_key';
   const THEME_KEY = 'gpa_theme';
