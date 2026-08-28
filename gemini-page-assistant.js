@@ -92,6 +92,7 @@
       <button id="gpa-min" title="Minimize">&minus;</button>
       <span class="gpa-title">Gemini Page Assistant</span>
       <span class="gpa-dot"></span>
+      <button id="gpa-close" title="Close">&times;</button>
     </div>
     <div class="gpa-body" id="gpa-body">
       <div class="gpa-tabs">
@@ -159,12 +160,19 @@
       * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
       .gpa-panel {
         width: 340px;
+        display: flex;
+        flex-direction: column;
         background: ${t.panel};
         color: ${t.text};
         border: 1px solid ${t.border};
         border-radius: 12px;
         box-shadow: 0 12px 32px rgba(0,0,0,0.45);
         overflow: hidden;
+        resize: both;
+        min-width: 300px;
+        min-height: 320px;
+        max-width: 95vw;
+        max-height: 90vh;
         user-select: none;
       }
       .gpa-header {
@@ -173,6 +181,7 @@
         background: ${t.bg};
         cursor: grab;
         border-bottom: 1px solid ${t.border};
+        flex-shrink: 0;
       }
       .gpa-header:active { cursor: grabbing; }
       #gpa-min {
@@ -186,8 +195,18 @@
       }
       .gpa-title { font-size: 12.5px; font-weight: 600; letter-spacing: 0.2px; flex: 1; }
       .gpa-dot { width: 7px; height: 7px; border-radius: 50%; background: ${t.accent}; flex-shrink:0; }
-      .gpa-body { padding: 10px; user-select: text; }
-      .gpa-tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+      #gpa-close {
+        width: 20px; height: 20px; border-radius: 5px;
+        border: 1px solid ${t.border};
+        background: ${t.field};
+        color: ${t.text};
+        font-size: 14px; line-height: 1; cursor: pointer;
+        display:flex; align-items:center; justify-content:center;
+        flex-shrink: 0;
+      }
+      #gpa-close:hover { background: #e5453a; border-color: #e5453a; color: #fff; }
+      .gpa-body { padding: 10px; user-select: text; flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+      .gpa-tabs { display: flex; gap: 4px; margin-bottom: 10px; flex-shrink: 0; }
       .gpa-tab {
         flex: 1; padding: 6px 4px; font-size: 11px; font-weight: 600;
         border: 1px solid ${t.border}; background: ${t.field}; color: ${t.sub};
@@ -195,8 +214,8 @@
       }
       .gpa-tab.active { color: ${t.text}; border-color: ${t.accent}; }
       .gpa-pane { display: none; }
-      .gpa-pane.active { display: block; }
-      .gpa-row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+      .gpa-pane.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+      .gpa-row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-shrink: 0; }
       .gpa-actions { flex-wrap: wrap; }
       .gpa-input {
         flex: 1; padding: 7px 9px; border-radius: 7px;
@@ -213,13 +232,13 @@
       .gpa-btn.primary { background: ${t.accent}; color: #fff; border-color: ${t.accent}; }
       .gpa-sub { color: ${t.sub}; font-size: 11px; flex: 1; }
       .gpa-output {
-        margin-top: 6px; max-height: 260px; overflow-y: auto;
+        margin-top: 6px; flex: 1; min-height: 80px; overflow-y: auto;
         font-size: 12.5px; line-height: 1.5; white-space: pre-wrap;
         padding: 8px; background: ${t.field}; border-radius: 8px;
-        border: 1px solid ${t.border}; min-height: 20px;
+        border: 1px solid ${t.border};
       }
       .gpa-chat {
-        max-height: 260px; overflow-y: auto; margin-bottom: 8px;
+        flex: 1; min-height: 80px; overflow-y: auto; margin-bottom: 8px;
         display: flex; flex-direction: column; gap: 6px;
       }
       .gpa-msg { padding: 7px 9px; border-radius: 8px; font-size: 12.5px; line-height: 1.45; white-space: pre-wrap; }
@@ -286,14 +305,17 @@
   panel.querySelector('#gpa-min').addEventListener('click', () => setMinimized(true));
   minimized.addEventListener('click', () => setMinimized(false));
   host.addEventListener('gpa-toggle', () => setMinimized(!isMin));
+  panel.querySelector('#gpa-close').addEventListener('click', () => host.remove());
 
   let isMin = false;
   function setMinimized(v) {
     isMin = v;
-    body.style.display = v ? 'none' : 'block';
+    body.style.display = v ? 'none' : 'flex';
     headerEl.style.display = v ? 'none' : 'flex';
     minimized.style.display = v ? 'flex' : 'none';
     panel.style.width = v ? 'auto' : '';
+    panel.style.height = v ? 'auto' : '';
+    panel.style.resize = v ? 'none' : 'both';
     panel.style.background = v ? 'transparent' : THEMES[theme].panel;
     panel.style.boxShadow = v ? 'none' : '';
     panel.style.border = v ? 'none' : '';
