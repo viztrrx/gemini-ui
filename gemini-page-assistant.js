@@ -159,7 +159,8 @@
     style.textContent = `
       * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
       .gpa-panel {
-        width: 340px;
+        width: 360px;
+        height: 480px;
         display: flex;
         flex-direction: column;
         background: ${t.panel};
@@ -168,11 +169,6 @@
         border-radius: 12px;
         box-shadow: 0 12px 32px rgba(0,0,0,0.45);
         overflow: hidden;
-        resize: both;
-        min-width: 300px;
-        min-height: 320px;
-        max-width: 95vw;
-        max-height: 90vh;
         user-select: none;
       }
       .gpa-header {
@@ -315,7 +311,6 @@
     minimized.style.display = v ? 'flex' : 'none';
     panel.style.width = v ? 'auto' : '';
     panel.style.height = v ? 'auto' : '';
-    panel.style.resize = v ? 'none' : 'both';
     panel.style.background = v ? 'transparent' : THEMES[theme].panel;
     panel.style.boxShadow = v ? 'none' : '';
     panel.style.border = v ? 'none' : '';
