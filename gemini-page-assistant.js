@@ -6,8 +6,16 @@
  *    and/or captures an actual SCREENSHOT (via getDisplayMedia), and sends
  *    either or both to Gemini to summarize, analyze, or answer questions.
  *  - A general "Ask AI" chat section, independent of page content.
- *  - A "SoundCloud" section using SoundCloud's own official embeddable
- *    player — no proxy or scraping, just their public embed API.
+ *  - A "Music" section with two ways to play something:
+ *      1) Type a song name/description ("mi historia entre tus dedos by
+ *         eslabon armado") and it searches YouTube's official Data API
+ *         for the closest match and plays it via YouTube's own embed
+ *         player. Needs a free YouTube Data API v3 key (see below).
+ *      2) Paste a SoundCloud link directly, played via SoundCloud's own
+ *         official embeddable player.
+ *    Either way it's an official embed API, not a scrape/proxy, and
+ *    playback keeps running in the background while you switch tabs
+ *    (the iframe stays in the DOM, just visually hidden).
  *  - A "Browser" section: a plain iframe with a URL bar. It only loads
  *    sites that allow being embedded (most publisher sites, wikis,
  *    many docs sites). Sites that set X-Frame-Options / CSP
@@ -21,16 +29,20 @@
  *
  * SETUP
  *  1. Get a free Gemini API key from https://aistudio.google.com/apikey
- *  2. Host this file somewhere you control (a GitHub Gist "raw" URL,
+ *  2. For the Music search feature: get a free YouTube Data API v3 key
+ *     at console.cloud.google.com — create/select a project, enable
+ *     "YouTube Data API v3" under APIs & Services, then create an API
+ *     key under Credentials. Free tier covers roughly 100 searches/day.
+ *  3. Host this file somewhere you control (a GitHub Gist "raw" URL,
  *     a repo on GitHub Pages, etc).
- *  3. On any page, open DevTools console and run:
+ *  4. On any page, open DevTools console and run:
  *       fetch('https://YOUR-RAW-URL/gemini-page-assistant.js').then(r=>r.text()).then(eval)
- *  4. The first time you use it, it'll ask you to paste your API key.
- *     The key is stored in localStorage FOR THAT SITE'S ORIGIN ONLY
- *     (browser security — a script can't share localStorage across
- *     different domains). You'll be asked again on a new domain unless
- *     you paste your own key directly into API_KEY_DEFAULT below before
- *     hosting your own copy.
+ *  5. The first time you use each feature, it'll ask you to paste the
+ *     relevant API key. Keys are stored in localStorage FOR THAT SITE'S
+ *     ORIGIN ONLY (browser security — a script can't share localStorage
+ *     across different domains). You'll be asked again on a new domain
+ *     unless you paste your own Gemini key directly into API_KEY_DEFAULT
+ *     below before hosting your own copy.
  *
  * SCREEN CAPTURE
  *  - "Capture Screen" uses the browser's native getDisplayMedia prompt —
@@ -59,6 +71,7 @@
   const MODEL = 'gemini-3.6-flash';
   const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
   const STORAGE_KEY = 'gpa_gemini_api_key';
+  const YT_STORAGE_KEY = 'gpa_youtube_api_key';
   const THEME_KEY = 'gpa_theme';
   const MAX_PAGE_CHARS = 18000;
   const MAX_IMAGE_WIDTH = 1280;
@@ -113,7 +126,7 @@
         <div class="gpa-dropdown-menu" id="gpa-dropdown-menu">
           <button class="gpa-dropdown-item active" data-tab="scan">Scan &amp; Analyze</button>
           <button class="gpa-dropdown-item" data-tab="ask">Ask AI</button>
-          <button class="gpa-dropdown-item" data-tab="soundcloud">SoundCloud</button>
+          <button class="gpa-dropdown-item" data-tab="music">Music</button>
           <button class="gpa-dropdown-item" data-tab="browser">Browser</button>
           <button class="gpa-dropdown-item" data-tab="theme">Theme</button>
         </div>
@@ -148,12 +161,19 @@
         </div>
       </div>
 
-      <div class="gpa-pane" data-pane="soundcloud">
+      <div class="gpa-pane" data-pane="music">
         <div class="gpa-row">
-          <input id="gpa-sc-url" class="gpa-input" placeholder="Paste a SoundCloud track or playlist link…" />
-          <button id="gpa-sc-load" class="gpa-btn primary">Load</button>
+          <input id="gpa-music-query" class="gpa-input" placeholder="Type a song name or description…" />
+          <button id="gpa-music-search" class="gpa-btn primary">Play</button>
         </div>
-        <div class="gpa-sub" style="margin-bottom:8px;">Uses SoundCloud's own official embeddable player.</div>
+        <div id="gpa-music-status" class="gpa-sub" style="margin-bottom:6px;"></div>
+        <div id="gpa-music-wrap" class="gpa-sc-wrap"></div>
+
+        <div class="gpa-sub" style="margin:12px 0 6px;">Or paste a SoundCloud link directly:</div>
+        <div class="gpa-row">
+          <input id="gpa-sc-url" class="gpa-input" placeholder="soundcloud.com/…" />
+          <button id="gpa-sc-load" class="gpa-btn">Load</button>
+        </div>
         <div id="gpa-sc-wrap" class="gpa-sc-wrap"></div>
       </div>
 
@@ -162,7 +182,7 @@
           <input id="gpa-browser-url" class="gpa-input" placeholder="Enter a URL…" />
           <button id="gpa-browser-go" class="gpa-btn primary">Go</button>
         </div>
-        <div class="gpa-sub" style="margin-bottom:8px;">Sites that block embedding (banks, most social apps, soundcloud.com itself) won't load here — that's a security setting on their end which this doesn't try to bypass. Use the SoundCloud tab for actual SoundCloud playback.</div>
+        <div class="gpa-sub" style="margin-bottom:8px;">Sites that block embedding (banks, most social apps, soundcloud.com itself) won't load here — that's a security setting on their end which this doesn't try to bypass. Use the Music tab for actual SoundCloud playback.</div>
         <iframe id="gpa-browser-frame" class="gpa-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>
       </div>
 
@@ -176,7 +196,8 @@
           <button class="gpa-swatch" data-theme="white" style="background:#f5f5f7;border-color:#2563eb;color:#111;">White</button>
         </div>
         <div class="gpa-row" style="margin-top:14px;">
-          <button id="gpa-clear-key" class="gpa-btn">Clear saved API key</button>
+          <button id="gpa-clear-key" class="gpa-btn">Clear saved Gemini key</button>
+          <button id="gpa-clear-yt-key" class="gpa-btn">Clear saved YouTube key</button>
         </div>
       </div>
     </div>
@@ -417,7 +438,11 @@
 
   panel.querySelector('#gpa-clear-key').addEventListener('click', () => {
     localStorage.removeItem(STORAGE_KEY);
-    alert('Saved API key cleared for this site.');
+    alert('Saved Gemini API key cleared for this site.');
+  });
+  panel.querySelector('#gpa-clear-yt-key').addEventListener('click', () => {
+    localStorage.removeItem(YT_STORAGE_KEY);
+    alert('Saved YouTube API key cleared for this site.');
   });
 
   // ---- Gemini API helpers -----------------------------------------------
@@ -595,6 +620,30 @@
     }
   }
 
+  function getYoutubeApiKey() {
+    let key = localStorage.getItem(YT_STORAGE_KEY);
+    if (!key) {
+      key = prompt('Paste a YouTube Data API v3 key (free, from console.cloud.google.com — enable "YouTube Data API v3" then create an API key):');
+      if (key) localStorage.setItem(YT_STORAGE_KEY, key.trim());
+    }
+    return key ? key.trim() : null;
+  }
+
+  async function searchYoutube(query) {
+    const key = getYoutubeApiKey();
+    if (!key) throw new Error('No YouTube API key provided.');
+    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=1&q=${encodeURIComponent(query)}&key=${key}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`YouTube API error (${res.status}): ${errText.slice(0, 300)}`);
+    }
+    const data = await res.json();
+    const item = data.items && data.items[0];
+    if (!item) throw new Error('No matching song found.');
+    return { id: item.id.videoId, title: item.snippet.title, channel: item.snippet.channelTitle };
+  }
+
   // ---- SoundCloud tab (official embeddable player, no proxy) ------------
   const scInput = panel.querySelector('#gpa-sc-url');
   const scLoadBtn = panel.querySelector('#gpa-sc-load');
@@ -612,6 +661,31 @@
   }
   scLoadBtn.addEventListener('click', loadSoundCloud);
   scInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadSoundCloud(); });
+
+  // ---- Music search & play (YouTube Data API + official embed player) ----
+  const musicQuery = panel.querySelector('#gpa-music-query');
+  const musicSearchBtn = panel.querySelector('#gpa-music-search');
+  const musicStatus = panel.querySelector('#gpa-music-status');
+  const musicWrap = panel.querySelector('#gpa-music-wrap');
+
+  async function playMusicSearch() {
+    const q = musicQuery.value.trim();
+    if (!q) return;
+    musicStatus.textContent = 'Searching…';
+    musicWrap.innerHTML = '';
+    musicSearchBtn.disabled = true;
+    try {
+      const match = await searchYoutube(q);
+      musicStatus.textContent = `Playing closest match: "${match.title}" — ${match.channel}`;
+      musicWrap.innerHTML = `<iframe class="gpa-sc-frame" allow="autoplay; encrypted-media" src="https://www.youtube.com/embed/${match.id}?autoplay=1"></iframe>`;
+    } catch (e) {
+      musicStatus.textContent = 'Error: ' + e.message;
+    } finally {
+      musicSearchBtn.disabled = false;
+    }
+  }
+  musicSearchBtn.addEventListener('click', playMusicSearch);
+  musicQuery.addEventListener('keydown', (e) => { if (e.key === 'Enter') playMusicSearch(); });
 
   // ---- Browser tab (plain iframe — only loads sites that allow embedding) --
   const browserUrlInput = panel.querySelector('#gpa-browser-url');
