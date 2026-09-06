@@ -78,6 +78,13 @@
   const OPENAI_STORAGE_KEY = 'gpa_openai_api_key';
   const OPENAI_MODEL = 'gpt-4o-mini';
   const PROVIDER_KEY = 'gpa_ai_provider';
+  const SPEED_KEY = 'gpa_type_speed';
+  const FONT_KEY = 'gpa_response_font';
+  const PARTICLE_KEY = 'gpa_particle_style';
+  const PARTICLE_DENSITY_KEY = 'gpa_particle_density';
+  const PARTICLE_MARGIN = 40;
+  const PARTICLE_BASE_W = 360 + PARTICLE_MARGIN * 2;
+  const PARTICLE_BASE_H = 480 + PARTICLE_MARGIN * 2;
   const YT_STORAGE_KEY = 'gpa_youtube_api_key';
   const THEME_KEY = 'gpa_theme';
   const CUSTOM_COLOR_KEY = 'gpa_custom_accent';
@@ -132,9 +139,19 @@
   const style = document.createElement('style');
   root.appendChild(style);
 
+  // Wrapper lets an ambient particle canvas float around the panel's edges
+  // without sitting on top of (or blocking clicks on) any actual content.
+  const particleWrap = document.createElement('div');
+  particleWrap.className = 'gpa-particle-wrap';
+  root.appendChild(particleWrap);
+
+  const particleCanvas = document.createElement('canvas');
+  particleCanvas.id = 'gpa-particles';
+  particleWrap.appendChild(particleCanvas);
+
   const panel = document.createElement('div');
   panel.className = 'gpa-panel';
-  root.appendChild(panel);
+  particleWrap.appendChild(panel);
 
   panel.innerHTML = `
     <div class="gpa-header" id="gpa-drag">
@@ -233,6 +250,31 @@
           <button class="gpa-btn provider-btn primary" data-provider="gemini">Gemini</button>
           <button class="gpa-btn provider-btn" data-provider="openai">OpenAI</button>
         </div>
+        <div class="gpa-sub" style="margin:14px 0 6px;">Typing animation speed</div>
+        <div class="gpa-row">
+          <button class="gpa-btn speed-btn" data-speed="slow">Slow</button>
+          <button class="gpa-btn speed-btn primary" data-speed="normal">Normal</button>
+          <button class="gpa-btn speed-btn" data-speed="fast">Fast</button>
+          <button class="gpa-btn speed-btn" data-speed="instant">Instant</button>
+        </div>
+        <div class="gpa-sub" style="margin:14px 0 6px;">Response font</div>
+        <div class="gpa-row">
+          <button class="gpa-btn font-btn primary" data-font="mono">Typewriter</button>
+          <button class="gpa-btn font-btn" data-font="system">Standard</button>
+        </div>
+        <div class="gpa-sub" style="margin:14px 0 6px;">Background particles</div>
+        <div class="gpa-row" style="flex-wrap: wrap;">
+          <button class="gpa-btn particle-btn primary" data-particle="off">Off</button>
+          <button class="gpa-btn particle-btn" data-particle="sparkles">Sparkles</button>
+          <button class="gpa-btn particle-btn" data-particle="snow">Snow</button>
+          <button class="gpa-btn particle-btn" data-particle="bubbles">Bubbles</button>
+          <button class="gpa-btn particle-btn" data-particle="stars">Stars</button>
+        </div>
+        <div class="gpa-row" style="margin-top:6px;">
+          <button class="gpa-btn density-btn" data-density="low">Low</button>
+          <button class="gpa-btn density-btn primary" data-density="medium">Medium</button>
+          <button class="gpa-btn density-btn" data-density="high">High</button>
+        </div>
         <div class="gpa-row" style="margin-top:8px; flex-wrap: wrap;">
           <button id="gpa-clear-key" class="gpa-btn">Clear saved Gemini key</button>
           <button id="gpa-clear-openai-key" class="gpa-btn">Clear saved OpenAI key</button>
@@ -254,6 +296,11 @@
     const t = THEMES[theme];
     style.textContent = `
       * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+      .gpa-particle-wrap { position: relative; }
+      #gpa-particles {
+        position: absolute; inset: -40px; z-index: 0; pointer-events: none; display: none;
+      }
+      .gpa-panel { position: relative; z-index: 1; }
       .gpa-panel {
         width: 360px;
         height: 480px;
@@ -266,6 +313,11 @@
         box-shadow: 0 12px 32px rgba(0,0,0,0.45);
         overflow: hidden;
         user-select: none;
+        animation: gpa-panel-in 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      @keyframes gpa-panel-in {
+        from { opacity: 0; transform: scale(0.92) translateY(8px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
       }
       .gpa-header {
         display: flex; align-items: center; gap: 8px;
@@ -286,7 +338,15 @@
         flex-shrink: 0;
       }
       .gpa-title { font-size: 12.5px; font-weight: 600; letter-spacing: 0.2px; flex: 1; }
-      .gpa-dot { width: 7px; height: 7px; border-radius: 50%; background: ${t.accent}; flex-shrink:0; }
+      .gpa-dot {
+        width: 7px; height: 7px; border-radius: 50%; background: ${t.accent}; flex-shrink:0;
+        box-shadow: 0 0 0 0 ${t.accent}80;
+        animation: gpa-dot-pulse 2.4s ease-in-out infinite;
+      }
+      @keyframes gpa-dot-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 ${t.accent}66; }
+        50% { box-shadow: 0 0 0 4px ${t.accent}00; }
+      }
       #gpa-close {
         width: 20px; height: 20px; border-radius: 5px;
         border: 1px solid ${t.border};
@@ -334,7 +394,14 @@
       .gpa-dropdown-item.active { color: ${t.accent}; }
       .gpa-dropdown-item.active::before { content: '● '; }
       .gpa-pane { display: none; }
-      .gpa-pane.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+      .gpa-pane.active {
+        display: flex; flex-direction: column; flex: 1; min-height: 0;
+        animation: gpa-pane-in 0.22s ease both;
+      }
+      @keyframes gpa-pane-in {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
       .gpa-row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-shrink: 0; }
       .gpa-actions { flex-wrap: wrap; }
       .gpa-input {
@@ -347,9 +414,12 @@
         padding: 7px 10px; border-radius: 7px; border: 1px solid ${t.border};
         background: ${t.field}; color: ${t.text}; font-size: 12px; font-weight: 600;
         cursor: pointer; white-space: nowrap;
+        transition: border-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
       }
-      .gpa-btn:hover { border-color: ${t.accent}; }
+      .gpa-btn:hover { border-color: ${t.accent}; transform: translateY(-1px); }
+      .gpa-btn:active { transform: translateY(0) scale(0.96); }
       .gpa-btn.primary { background: ${t.accent}; color: #fff; border-color: ${t.accent}; }
+      .gpa-btn.primary:hover { box-shadow: 0 0 0 3px ${t.accent}33; }
       .gpa-sub { color: ${t.sub}; font-size: 11px; flex: 1; }
       .gpa-output {
         margin-top: 6px; flex: 1; min-height: 80px; overflow-y: auto;
@@ -372,6 +442,25 @@
         animation: gpa-blink 0.85s steps(1) infinite;
       }
       @keyframes gpa-blink { 50% { opacity: 0; } }
+      .gpa-answer-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+        gap: 8px;
+      }
+      .gpa-grid-cell {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 3px; padding: 9px 4px; border-radius: 9px;
+        background: ${t.panel}; border: 1px solid ${t.border};
+        animation: gpa-cell-in 0.3s ease both;
+      }
+      .gpa-grid-q { font-size: 10px; font-weight: 700; letter-spacing: 0.3px; color: ${t.sub}; }
+      .gpa-grid-a {
+        font-size: 16px; font-weight: 800; color: ${t.accent};
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      }
+      @keyframes gpa-cell-in {
+        from { opacity: 0; transform: scale(0.82) translateY(5px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+      }
       .gpa-chat {
         flex: 1; min-height: 80px; overflow-y: auto; margin-bottom: 8px;
         display: flex; flex-direction: column; gap: 6px;
@@ -390,6 +479,11 @@
       }
       .provider-btn { flex: 1; }
       .provider-btn.primary { background: ${t.accent}; color: #fff; border-color: ${t.accent}; }
+      .speed-btn, .font-btn, .particle-btn, .density-btn { flex: 1; padding: 6px 4px; font-size: 11px; }
+      .speed-btn.primary, .font-btn.primary, .particle-btn.primary, .density-btn.primary { background: ${t.accent}; color: #fff; border-color: ${t.accent}; }
+      .gpa-font-system .gpa-output, .gpa-font-system .gpa-msg.ai {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      }
       .gpa-mini {
         width: 40px; height: 40px; border-radius: 50%;
         background: ${t.accent}; color: #fff; display: flex;
@@ -488,6 +582,15 @@
     panel.style.background = v ? 'transparent' : THEMES[theme].panel;
     panel.style.boxShadow = v ? 'none' : '';
     panel.style.border = v ? 'none' : '';
+
+    const activeParticleStyle = localStorage.getItem(PARTICLE_KEY) || 'off';
+    if (v) {
+      particleCanvas.style.display = 'none';
+      if (particleAnimId) { cancelAnimationFrame(particleAnimId); particleAnimId = null; }
+    } else if (activeParticleStyle !== 'off') {
+      particleCanvas.style.display = 'block';
+      if (!particleAnimId) stepParticles();
+    }
   }
 
   // ---- Dropdown section switcher -----------------------------------------
@@ -551,6 +654,177 @@
     btn.addEventListener('click', () => {
       localStorage.setItem(PROVIDER_KEY, btn.dataset.provider);
       setProviderUI(btn.dataset.provider);
+    });
+  });
+
+  // ---- Typing speed toggle ------------------------------------------------
+  const speedBtns = panel.querySelectorAll('.speed-btn');
+  function setSpeedUI(s) {
+    speedBtns.forEach((b) => b.classList.toggle('primary', b.dataset.speed === s));
+  }
+  setSpeedUI(localStorage.getItem(SPEED_KEY) || 'normal');
+  speedBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      localStorage.setItem(SPEED_KEY, btn.dataset.speed);
+      setSpeedUI(btn.dataset.speed);
+    });
+  });
+
+  // ---- Response font toggle ------------------------------------------------
+  const fontBtns = panel.querySelectorAll('.font-btn');
+  function setFontUI(f) {
+    fontBtns.forEach((b) => b.classList.toggle('primary', b.dataset.font === f));
+    panel.classList.toggle('gpa-font-system', f === 'system');
+  }
+  setFontUI(localStorage.getItem(FONT_KEY) || 'mono');
+  fontBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      localStorage.setItem(FONT_KEY, btn.dataset.font);
+      setFontUI(btn.dataset.font);
+    });
+  });
+
+  // ---- Ambient particle background ---------------------------------------
+  // A canvas that floats around the panel's edges (not on top of content,
+  // so it never blocks a click) with a few interactive styles. Particles
+  // gently drift away from the cursor and are tinted with the current
+  // theme's accent color, so switching themes re-colors them automatically.
+  const particleCtx = particleCanvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  particleCanvas.width = PARTICLE_BASE_W * dpr;
+  particleCanvas.height = PARTICLE_BASE_H * dpr;
+  particleCtx.scale(dpr, dpr);
+
+  let particles = [];
+  let particleAnimId = null;
+  let mouseX = -9999, mouseY = -9999;
+
+  particleWrap.addEventListener('mousemove', (e) => {
+    const rect = particleCanvas.getBoundingClientRect();
+    mouseX = e.clientX - rect.left;
+    mouseY = e.clientY - rect.top;
+  });
+  particleWrap.addEventListener('mouseleave', () => { mouseX = -9999; mouseY = -9999; });
+
+  function hexToRgba(hex, alpha) {
+    const h = hex.replace('#', '');
+    const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+    const num = parseInt(full, 16);
+    return `rgba(${(num >> 16) & 255},${(num >> 8) & 255},${num & 255},${alpha})`;
+  }
+
+  function makeParticle(styleName) {
+    const w = PARTICLE_BASE_W, h = PARTICLE_BASE_H;
+    const p = { style: styleName };
+    if (styleName === 'snow') {
+      p.x = Math.random() * w; p.y = Math.random() * h;
+      p.vx = (Math.random() - 0.5) * 0.3; p.vy = 0.3 + Math.random() * 0.6;
+      p.r = 1 + Math.random() * 2; p.alpha = 0.4 + Math.random() * 0.5; p.sway = Math.random() * Math.PI * 2;
+    } else if (styleName === 'bubbles') {
+      p.x = Math.random() * w; p.y = h + Math.random() * h;
+      p.vx = (Math.random() - 0.5) * 0.2; p.vy = -(0.3 + Math.random() * 0.5);
+      p.r = 2 + Math.random() * 4; p.alpha = 0.15 + Math.random() * 0.25; p.wobble = Math.random() * Math.PI * 2;
+    } else if (styleName === 'stars') {
+      p.x = Math.random() * w; p.y = Math.random() * h;
+      p.vx = 0; p.vy = 0; p.r = 1 + Math.random() * 1.8;
+      p.phase = Math.random() * Math.PI * 2; p.speed = 0.015 + Math.random() * 0.03;
+    } else { // sparkles (default)
+      p.x = Math.random() * w; p.y = Math.random() * h;
+      p.vx = (Math.random() - 0.5) * 0.15; p.vy = (Math.random() - 0.5) * 0.15;
+      p.r = 0.6 + Math.random() * 1.6; p.phase = Math.random() * Math.PI * 2; p.speed = 0.02 + Math.random() * 0.04;
+    }
+    return p;
+  }
+
+  function initParticles(styleName) {
+    particles = [];
+    if (styleName === 'off') return;
+    const density = localStorage.getItem(PARTICLE_DENSITY_KEY) || 'medium';
+    const count = { low: 18, medium: 34, high: 55 }[density] || 34;
+    for (let i = 0; i < count; i++) particles.push(makeParticle(styleName));
+  }
+
+  function stepParticles() {
+    const styleName = localStorage.getItem(PARTICLE_KEY) || 'off';
+    if (styleName === 'off') {
+      particleCtx.clearRect(0, 0, PARTICLE_BASE_W, PARTICLE_BASE_H);
+      particleAnimId = null;
+      return;
+    }
+    const w = PARTICLE_BASE_W, h = PARTICLE_BASE_H;
+    particleCtx.clearRect(0, 0, w, h);
+    const accent = THEMES[theme].accent;
+    particles.forEach((p) => {
+      const dx = p.x - mouseX, dy = p.y - mouseY;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 60 && dist > 0.01) {
+        const force = ((60 - dist) / 60) * 1.4;
+        p.x += (dx / dist) * force;
+        p.y += (dy / dist) * force;
+      }
+      let alpha = 0.6;
+      if (p.style === 'snow') {
+        p.sway += 0.02;
+        p.x += p.vx + Math.sin(p.sway) * 0.3;
+        p.y += p.vy;
+        if (p.y > h + 5) { p.y = -5; p.x = Math.random() * w; }
+        alpha = p.alpha;
+      } else if (p.style === 'bubbles') {
+        p.wobble += 0.03;
+        p.x += p.vx + Math.sin(p.wobble) * 0.4;
+        p.y += p.vy;
+        if (p.y < -10) { p.y = h + 10; p.x = Math.random() * w; }
+        alpha = p.alpha;
+      } else if (p.style === 'stars') {
+        p.phase += p.speed;
+        alpha = 0.2 + Math.abs(Math.sin(p.phase)) * 0.8;
+      } else { // sparkles
+        p.x += p.vx; p.y += p.vy;
+        p.phase += p.speed;
+        alpha = 0.25 + Math.abs(Math.sin(p.phase)) * 0.75;
+        if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
+        if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
+      }
+      particleCtx.beginPath();
+      particleCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      particleCtx.fillStyle = hexToRgba(accent, alpha);
+      particleCtx.fill();
+    });
+    particleAnimId = requestAnimationFrame(stepParticles);
+  }
+
+  function setParticleStyle(styleName) {
+    localStorage.setItem(PARTICLE_KEY, styleName);
+    particleCanvas.style.display = styleName === 'off' || isMin ? 'none' : 'block';
+    initParticles(styleName);
+    if (particleAnimId) cancelAnimationFrame(particleAnimId);
+    particleAnimId = null;
+    if (styleName !== 'off' && !isMin) stepParticles();
+  }
+
+  const particleBtns = panel.querySelectorAll('.particle-btn');
+  function setParticleUI(s) {
+    particleBtns.forEach((b) => b.classList.toggle('primary', b.dataset.particle === s));
+  }
+  const densityBtns = panel.querySelectorAll('.density-btn');
+  function setDensityUI(d) {
+    densityBtns.forEach((b) => b.classList.toggle('primary', b.dataset.density === d));
+  }
+  setParticleUI(localStorage.getItem(PARTICLE_KEY) || 'off');
+  setDensityUI(localStorage.getItem(PARTICLE_DENSITY_KEY) || 'medium');
+  setParticleStyle(localStorage.getItem(PARTICLE_KEY) || 'off');
+
+  particleBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setParticleUI(btn.dataset.particle);
+      setParticleStyle(btn.dataset.particle);
+    });
+  });
+  densityBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      localStorage.setItem(PARTICLE_DENSITY_KEY, btn.dataset.density);
+      setDensityUI(btn.dataset.density);
+      initParticles(localStorage.getItem(PARTICLE_KEY) || 'off');
     });
   });
 
@@ -685,8 +959,17 @@
 
   // ---- Typewriter effect for AI responses ---------------------------------
   // Reveals text a few characters at a time with a blinking cursor. Speed
-  // scales with length so long answers don't take forever to finish.
+  // scales with length so long answers don't take forever to finish, and
+  // is user-adjustable (Slow/Normal/Fast/Instant) in the Theme tab.
   function typeText(el, fullText, scrollContainer) {
+    const speedSetting = localStorage.getItem(SPEED_KEY) || 'normal';
+    if (speedSetting === 'instant') {
+      el.classList.remove('gpa-typing');
+      el.textContent = fullText;
+      if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      return;
+    }
+    const delayMs = { slow: 28, normal: 12, fast: 4 }[speedSetting] || 12;
     el.classList.add('gpa-typing');
     el.textContent = '';
     const cursor = document.createElement('span');
@@ -704,9 +987,37 @@
       cursor.insertAdjacentText('beforebegin', fullText.slice(i, i + chunk));
       i += chunk;
       if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      setTimeout(step, 12);
+      setTimeout(step, delayMs);
     }
     step();
+  }
+
+  // ---- Structured answer grid (for "answers to questions 1-10" style asks) --
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function tryParseAnswerGrid(text) {
+    const trimmed = text.trim();
+    if (!(trimmed.startsWith('[') && trimmed.endsWith(']'))) return null;
+    try {
+      const arr = JSON.parse(trimmed);
+      if (Array.isArray(arr) && arr.length && arr.every((it) => it && typeof it === 'object' && 'q' in it && 'a' in it)) {
+        return arr;
+      }
+    } catch (e) { /* not JSON — fall through to plain text */ }
+    return null;
+  }
+
+  function renderAnswerGrid(el, arr) {
+    el.classList.remove('gpa-typing');
+    const cells = arr.map((it, idx) =>
+      `<div class="gpa-grid-cell" style="animation-delay:${idx * 35}ms">
+         <span class="gpa-grid-q">${escapeHtml(it.q)}</span>
+         <span class="gpa-grid-a">${escapeHtml(it.a)}</span>
+       </div>`
+    ).join('');
+    el.innerHTML = `<div class="gpa-answer-grid">${cells}</div>`;
   }
 
   function extractPageText() {
@@ -834,10 +1145,12 @@
     if (!pageText && !screenshotDataUrl) { scanOutput.textContent = 'Scan the page or capture the screen first.'; return; }
     scanOutput.textContent = 'Thinking…';
     try {
-      const sys = 'Answer the question using ONLY the provided context (page text and/or screenshot), as briefly as possible. Plain sentences only — no markdown formatting (no asterisks, headers, or lists) since this is shown as plain text. If the answer is not in the content, say so in one short sentence.';
+      const sys = 'Answer the question using ONLY the provided context (page text and/or screenshot). If — and only if — the question is asking for answers to multiple numbered items (like a quiz, worksheet, or multiple-choice list), respond with ONLY a JSON array and nothing else, in exactly this shape: [{"q":"1","a":"B"},{"q":"2","a":"D"}] — "q" is the item number/label as a string, "a" is the short answer, one object per item, no extra commentary. For any other kind of question, answer in brief plain sentences with no markdown formatting (no asterisks, headers, or lists) since this is shown as plain text. If the answer is not in the content, say so in one short sentence.';
       const textPart = `${pageText ? `PAGE TEXT:\n${pageText}\n\n` : ''}QUESTION:\n${q}`;
       const out = await callAI(textPart, sys, screenshotDataUrl ? [screenshotDataUrl] : null);
-      typeText(scanOutput, out, scanOutput);
+      const grid = tryParseAnswerGrid(out);
+      if (grid) renderAnswerGrid(scanOutput, grid);
+      else typeText(scanOutput, out, scanOutput);
     } catch (e) {
       showError(scanOutput, e, currentProviderLabel());
     }
