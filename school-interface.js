@@ -341,9 +341,16 @@
       .gpa-output {
         margin-top: 6px; flex: 1; min-height: 80px; overflow-y: auto;
         font-size: 12.5px; line-height: 1.5; white-space: pre-wrap;
+        overflow-wrap: break-word; word-break: break-word;
         padding: 8px; background: ${t.field}; border-radius: 8px;
         border: 1px solid ${t.border};
       }
+      .gpa-error {
+        display: flex; align-items: flex-start; gap: 8px;
+        background: rgba(229, 69, 58, 0.1); border: 1px solid rgba(229, 69, 58, 0.35);
+        border-radius: 8px; padding: 9px 10px; color: ${t.text};
+      }
+      .gpa-error-icon { flex-shrink: 0; font-size: 14px; line-height: 1.4; }
       .gpa-chat {
         flex: 1; min-height: 80px; overflow-y: auto; margin-bottom: 8px;
         display: flex; flex-direction: column; gap: 6px;
@@ -379,6 +386,29 @@
       }
       .gpa-sc-wrap { flex: 1; overflow-y: auto; }
       .gpa-sc-frame { width: 100%; height: 166px; border: 0; border-radius: 8px; }
+
+      /* Themed scrollbars — thumb matches the current accent color */
+      .gpa-body, .gpa-output, .gpa-chat, .gpa-sc-wrap {
+        scrollbar-width: thin;
+        scrollbar-color: ${t.accent} ${t.field};
+      }
+      .gpa-body::-webkit-scrollbar, .gpa-output::-webkit-scrollbar,
+      .gpa-chat::-webkit-scrollbar, .gpa-sc-wrap::-webkit-scrollbar {
+        width: 8px; height: 8px;
+      }
+      .gpa-body::-webkit-scrollbar-track, .gpa-output::-webkit-scrollbar-track,
+      .gpa-chat::-webkit-scrollbar-track, .gpa-sc-wrap::-webkit-scrollbar-track {
+        background: ${t.field}; border-radius: 8px;
+      }
+      .gpa-body::-webkit-scrollbar-thumb, .gpa-output::-webkit-scrollbar-thumb,
+      .gpa-chat::-webkit-scrollbar-thumb, .gpa-sc-wrap::-webkit-scrollbar-thumb {
+        background: ${t.accent}; border-radius: 8px; border: 2px solid ${t.field};
+      }
+      .gpa-body::-webkit-scrollbar-thumb:hover, .gpa-output::-webkit-scrollbar-thumb:hover,
+      .gpa-chat::-webkit-scrollbar-thumb:hover, .gpa-sc-wrap::-webkit-scrollbar-thumb:hover {
+        background: ${t.sub};
+      }
+      .gpa-body::-webkit-scrollbar-corner { background: transparent; }
     `;
   }
   applyTheme(theme);
@@ -599,6 +629,39 @@
       : callGemini(userText, systemText, imageDataUrls);
   }
 
+  // ---- Friendly error display ---------------------------------------------
+  // Turns raw API error text (status codes, JSON bodies) into one plain
+  // sentence, and renders it in a small styled box instead of a code dump.
+  function explainError(err, label) {
+    const msg = (err && err.message) || String(err);
+    const statusMatch = msg.match(/\((\d{3})\)/);
+    const status = statusMatch ? statusMatch[1] : null;
+
+    if (/No .*API key provided/i.test(msg)) return 'No API key entered yet — try again and paste one when prompted.';
+    if (/Nothing to send|Nothing to analyze/i.test(msg)) return 'Nothing to work with yet — scan the page, capture the screen, or type something first.';
+    if (status === '401' || /invalid.*key|unauthorized|API key not valid/i.test(msg)) {
+      return `${label} rejected your API key. Double-check it (or clear and re-enter it) in the Theme tab.`;
+    }
+    if (status === '429' || /quota|credit|rate.?limit/i.test(msg)) {
+      return `${label} says you're out of credits or hitting a rate limit. Check your billing/usage there, or switch providers in the Theme tab.`;
+    }
+    if (status === '404' || /model.*(not found|no longer available)/i.test(msg)) {
+      return `${label}'s model name may have changed on their end and needs updating in the script.`;
+    }
+    if (/network|failed to fetch/i.test(msg)) {
+      return `Couldn't reach ${label} — check your connection and try again.`;
+    }
+    return `Something went wrong talking to ${label}${status ? ` (error ${status})` : ''}. Try again in a moment.`;
+  }
+
+  function showError(el, err, label) {
+    el.innerHTML = `<div class="gpa-error"><span class="gpa-error-icon">⚠</span><span>${explainError(err, label)}</span></div>`;
+  }
+
+  function currentProviderLabel() {
+    return (localStorage.getItem(PROVIDER_KEY) || 'gemini') === 'openai' ? 'OpenAI' : 'Gemini';
+  }
+
   function extractPageText() {
     const clone = document.body.cloneNode(true);
     clone.querySelectorAll('script,style,noscript,svg,canvas,iframe').forEach((el) => el.remove());
@@ -707,7 +770,7 @@
         const out = await callAI(textPart, sys, screenshotDataUrl ? [screenshotDataUrl] : null);
         scanOutput.textContent = out;
       } catch (e) {
-        scanOutput.textContent = 'Error: ' + e.message;
+        showError(scanOutput, e, currentProviderLabel());
       }
     });
   });
@@ -729,7 +792,7 @@
       const out = await callAI(textPart, sys, screenshotDataUrl ? [screenshotDataUrl] : null);
       scanOutput.textContent = out;
     } catch (e) {
-      scanOutput.textContent = 'Error: ' + e.message;
+      showError(scanOutput, e, currentProviderLabel());
     }
   }
 
@@ -792,7 +855,7 @@
       musicStatus.textContent = `Playing closest match: "${match.title}" — ${match.channel}`;
       musicWrap.innerHTML = `<iframe class="gpa-sc-frame" allow="autoplay; encrypted-media" src="https://www.youtube.com/embed/${match.id}?autoplay=1"></iframe>`;
     } catch (e) {
-      musicStatus.textContent = 'Error: ' + e.message;
+      showError(musicStatus, e, 'YouTube');
     } finally {
       musicSearchBtn.disabled = false;
     }
@@ -841,7 +904,7 @@
       const out = await callAI(q, 'You are a helpful, concise general-purpose assistant.');
       thinking.textContent = out;
     } catch (e) {
-      thinking.textContent = 'Error: ' + e.message;
+      showError(thinking, e, currentProviderLabel());
     }
   }
   askBtn.addEventListener('click', sendChat);
