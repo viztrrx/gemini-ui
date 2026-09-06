@@ -116,6 +116,19 @@
   document.documentElement.appendChild(host);
   const root = host.attachShadow({ mode: 'open' });
 
+  // Best-effort load of a nicer monospace font for AI responses. If the
+  // host page's CSP blocks external stylesheets, this silently no-ops and
+  // the CSS font-family fallback stack (system monospace fonts) is used.
+  if (!document.getElementById('gpa-font-link')) {
+    try {
+      const fontLink = document.createElement('link');
+      fontLink.id = 'gpa-font-link';
+      fontLink.rel = 'stylesheet';
+      fontLink.href = 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap';
+      document.head.appendChild(fontLink);
+    } catch (e) { /* ignore — falls back to system monospace fonts */ }
+  }
+
   const style = document.createElement('style');
   root.appendChild(style);
 
@@ -340,8 +353,9 @@
       .gpa-sub { color: ${t.sub}; font-size: 11px; flex: 1; }
       .gpa-output {
         margin-top: 6px; flex: 1; min-height: 80px; overflow-y: auto;
-        font-size: 12.5px; line-height: 1.5; white-space: pre-wrap;
+        font-size: 12.5px; line-height: 1.6; white-space: pre-wrap;
         overflow-wrap: break-word; word-break: break-word;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
         padding: 8px; background: ${t.field}; border-radius: 8px;
         border: 1px solid ${t.border};
       }
@@ -349,15 +363,22 @@
         display: flex; align-items: flex-start; gap: 8px;
         background: rgba(229, 69, 58, 0.1); border: 1px solid rgba(229, 69, 58, 0.35);
         border-radius: 8px; padding: 9px 10px; color: ${t.text};
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       }
       .gpa-error-icon { flex-shrink: 0; font-size: 14px; line-height: 1.4; }
+      .gpa-cursor {
+        display: inline-block; width: 2px; height: 1em;
+        background: ${t.accent}; margin-left: 1px; vertical-align: text-bottom;
+        animation: gpa-blink 0.85s steps(1) infinite;
+      }
+      @keyframes gpa-blink { 50% { opacity: 0; } }
       .gpa-chat {
         flex: 1; min-height: 80px; overflow-y: auto; margin-bottom: 8px;
         display: flex; flex-direction: column; gap: 6px;
       }
-      .gpa-msg { padding: 7px 9px; border-radius: 8px; font-size: 12.5px; line-height: 1.45; white-space: pre-wrap; }
-      .gpa-msg.user { background: ${t.accent}; color: #fff; align-self: flex-end; max-width: 85%; }
-      .gpa-msg.ai { background: ${t.field}; border: 1px solid ${t.border}; align-self: flex-start; max-width: 90%; }
+      .gpa-msg { padding: 7px 9px; border-radius: 8px; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word; }
+      .gpa-msg.user { background: ${t.accent}; color: #fff; align-self: flex-end; max-width: 85%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+      .gpa-msg.ai { background: ${t.field}; border: 1px solid ${t.border}; align-self: flex-start; max-width: 90%; font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace; }
       .gpa-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
       .gpa-swatch {
         width: 56px; height: 34px; border-radius: 8px; border: 2px solid transparent;
@@ -662,6 +683,32 @@
     return (localStorage.getItem(PROVIDER_KEY) || 'gemini') === 'openai' ? 'OpenAI' : 'Gemini';
   }
 
+  // ---- Typewriter effect for AI responses ---------------------------------
+  // Reveals text a few characters at a time with a blinking cursor. Speed
+  // scales with length so long answers don't take forever to finish.
+  function typeText(el, fullText, scrollContainer) {
+    el.classList.add('gpa-typing');
+    el.textContent = '';
+    const cursor = document.createElement('span');
+    cursor.className = 'gpa-cursor';
+    el.appendChild(cursor);
+    const total = fullText.length;
+    const chunk = Math.max(1, Math.ceil(total / 400));
+    let i = 0;
+    function step() {
+      if (i >= total) {
+        cursor.remove();
+        el.classList.remove('gpa-typing');
+        return;
+      }
+      cursor.insertAdjacentText('beforebegin', fullText.slice(i, i + chunk));
+      i += chunk;
+      if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      setTimeout(step, 12);
+    }
+    step();
+  }
+
   function extractPageText() {
     const clone = document.body.cloneNode(true);
     clone.querySelectorAll('script,style,noscript,svg,canvas,iframe').forEach((el) => el.remove());
@@ -762,13 +809,13 @@
       if (!pageText && !screenshotDataUrl) { scanOutput.textContent = 'Scan the page or capture the screen first.'; return; }
       const action = btn.dataset.action;
       const sys = action === 'summarize'
-        ? 'Summarize the provided content clearly and concisely, in a few short paragraphs or bullet points. If both page text and a screenshot are provided, use both together.'
-        : 'Analyze the provided content: identify its main topic, key points/arguments, tone, and anything notable. If both page text and a screenshot are provided, use both together.';
+        ? 'Summarize the provided content in plain, everyday sentences — the shortest version that still covers the essentials. No markdown formatting (no asterisks, headers, or numbered/bulleted lists) since this is shown as plain text. If both page text and a screenshot are provided, use both together.'
+        : 'Give a brief, plain-language read on the provided content: what it\'s about, the main point, and anything notable — a few sentences, not a breakdown. No markdown formatting (no asterisks, headers, or numbered/bulleted lists) since this is shown as plain text. If both page text and a screenshot are provided, use both together.';
       scanOutput.textContent = 'Thinking…';
       try {
         const textPart = pageText ? `PAGE TEXT:\n${pageText}` : '(no page text captured — use the screenshot)';
         const out = await callAI(textPart, sys, screenshotDataUrl ? [screenshotDataUrl] : null);
-        scanOutput.textContent = out;
+        typeText(scanOutput, out, scanOutput);
       } catch (e) {
         showError(scanOutput, e, currentProviderLabel());
       }
@@ -787,10 +834,10 @@
     if (!pageText && !screenshotDataUrl) { scanOutput.textContent = 'Scan the page or capture the screen first.'; return; }
     scanOutput.textContent = 'Thinking…';
     try {
-      const sys = 'Answer the question using ONLY the provided context (page text and/or screenshot). If the answer is not in the content, say so clearly.';
+      const sys = 'Answer the question using ONLY the provided context (page text and/or screenshot), as briefly as possible. Plain sentences only — no markdown formatting (no asterisks, headers, or lists) since this is shown as plain text. If the answer is not in the content, say so in one short sentence.';
       const textPart = `${pageText ? `PAGE TEXT:\n${pageText}\n\n` : ''}QUESTION:\n${q}`;
       const out = await callAI(textPart, sys, screenshotDataUrl ? [screenshotDataUrl] : null);
-      scanOutput.textContent = out;
+      typeText(scanOutput, out, scanOutput);
     } catch (e) {
       showError(scanOutput, e, currentProviderLabel());
     }
@@ -901,8 +948,8 @@
     chatEl.appendChild(thinking);
     chatEl.scrollTop = chatEl.scrollHeight;
     try {
-      const out = await callAI(q, 'You are a helpful, concise general-purpose assistant.');
-      thinking.textContent = out;
+      const out = await callAI(q, 'You are a helpful, concise assistant. Reply in plain conversational sentences only — no markdown formatting (no asterisks, headers, or lists) since this is shown as plain text. Keep answers as short as possible while still being useful.');
+      typeText(thinking, out, chatEl);
     } catch (e) {
       showError(thinking, e, currentProviderLabel());
     }
