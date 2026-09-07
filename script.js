@@ -153,6 +153,27 @@
     } catch (e) { /* ignore — falls back to system monospace fonts */ }
   }
 
+  // Styles for on-page highlight spans MUST live in the host page's own
+  // <head>, not our shadow root's stylesheet — shadow DOM styles don't
+  // reach elements injected into the outer document.
+  if (!document.getElementById('gpa-highlight-style')) {
+    const hlStyle = document.createElement('style');
+    hlStyle.id = 'gpa-highlight-style';
+    hlStyle.textContent = `
+      .gpa-page-highlight {
+        background: var(--gpa-hl-bg, rgba(255, 235, 59, 0.5)) !important;
+        border-radius: 3px; padding: 0 2px; box-shadow: 0 0 0 rgba(0,0,0,0);
+        animation: gpa-hl-in 0.5s ease;
+      }
+      @keyframes gpa-hl-in {
+        0% { box-shadow: 0 0 0 0 var(--gpa-hl-glow, rgba(255,235,59,0.9)); }
+        60% { box-shadow: 0 0 10px 3px var(--gpa-hl-glow, rgba(255,235,59,0.9)); }
+        100% { box-shadow: 0 0 0 0 transparent; }
+      }
+    `;
+    document.head.appendChild(hlStyle);
+  }
+
   const style = document.createElement('style');
   root.appendChild(style);
 
@@ -224,6 +245,9 @@
           <button id="gpa-question-btn" class="gpa-btn primary">Answer</button>
         </div>
         <div id="gpa-scan-output" class="gpa-output"></div>
+        <div class="gpa-row" style="margin-top:6px;">
+          <button id="gpa-clear-highlights" class="gpa-btn" style="display:none;">✕ Clear page highlights</button>
+        </div>
       </div>
 
       <div class="gpa-pane" data-pane="ask">
@@ -377,11 +401,13 @@
         height: 480px;
         display: flex;
         flex-direction: column;
-        background: ${t.panel};
+        background: linear-gradient(160deg, ${t.panel}ee 0%, ${t.bg}f2 100%);
         color: ${t.text};
-        border: 1px solid ${t.accent}55;
-        border-radius: 7px;
-        box-shadow: 0 16px 40px rgba(0,0,0,0.5), 0 0 0 1px ${t.accent}22, 0 0 24px ${t.accent}33;
+        border: 1px solid ${t.accent}70;
+        clip-path: polygon(22px 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%, 0 22px);
+        backdrop-filter: blur(16px) saturate(150%);
+        -webkit-backdrop-filter: blur(16px) saturate(150%);
+        box-shadow: 0 20px 50px rgba(0,0,0,0.55), 0 0 0 1px ${t.accent}25, 0 0 34px ${t.accent}40, inset 0 0 40px ${t.accent}0d;
         overflow: hidden;
         user-select: none;
         animation: gpa-panel-in 0.32s cubic-bezier(0.16, 1, 0.3, 1);
@@ -391,7 +417,7 @@
         to { opacity: 1; transform: scale(1) translateY(0); }
       }
       .gpa-corner {
-        position: absolute; width: 14px; height: 14px; pointer-events: none; z-index: 3;
+        position: absolute; width: 20px; height: 20px; pointer-events: none; z-index: 3;
       }
       .gpa-corner-tl { top: -1px; left: -1px; border-top: 2px solid ${t.accent}; border-left: 2px solid ${t.accent}; }
       .gpa-corner-tr { top: -1px; right: -1px; border-top: 2px solid ${t.accent}; border-right: 2px solid ${t.accent}; }
@@ -411,22 +437,24 @@
       }
       .gpa-header {
         display: flex; align-items: center; gap: 8px;
-        padding: 8px 10px;
-        background: ${t.bg};
+        padding: 10px 12px;
+        background: linear-gradient(90deg, ${t.accent}18, transparent 60%);
         cursor: grab;
         border-bottom: 1px solid ${t.accent}44;
         flex-shrink: 0;
       }
       .gpa-header:active { cursor: grabbing; }
       #gpa-min {
-        width: 20px; height: 20px; border-radius: 5px;
-        border: 1px solid ${t.border};
-        background: ${t.field};
-        color: ${t.text};
+        width: 22px; height: 22px; border-radius: 50%;
+        border: 1px solid ${t.accent}70;
+        background: transparent;
+        color: ${t.accent};
         font-size: 14px; line-height: 1; cursor: pointer;
         display:flex; align-items:center; justify-content:center;
         flex-shrink: 0;
+        transition: box-shadow 0.15s ease, background 0.15s ease;
       }
+      #gpa-min:hover { background: ${t.accent}22; box-shadow: 0 0 10px ${t.accent}66; }
       .gpa-title {
         font-size: 10.5px; font-weight: 700; letter-spacing: 1.4px; flex: 1;
         text-transform: uppercase;
@@ -443,15 +471,16 @@
         50% { box-shadow: 0 0 0 4px ${t.accent}00; }
       }
       #gpa-close {
-        width: 20px; height: 20px; border-radius: 5px;
-        border: 1px solid ${t.border};
-        background: ${t.field};
-        color: ${t.text};
+        width: 22px; height: 22px; border-radius: 50%;
+        border: 1px solid ${t.accent}70;
+        background: transparent;
+        color: ${t.accent};
         font-size: 14px; line-height: 1; cursor: pointer;
         display:flex; align-items:center; justify-content:center;
         flex-shrink: 0;
+        transition: box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
       }
-      #gpa-close:hover { background: #e5453a; border-color: #e5453a; color: #fff; }
+      #gpa-close:hover { background: #e5453a; border-color: #e5453a; color: #fff; box-shadow: 0 0 10px #e5453a99; }
       .gpa-body { padding: 10px; user-select: text; flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
       .gpa-dropdown { position: relative; margin-bottom: 10px; flex-shrink: 0; }
       .gpa-dropdown-btn {
@@ -466,34 +495,29 @@
         box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset;
         transition: border-color 0.15s ease, box-shadow 0.15s ease;
       }
-      .gpa-dropdown-btn:hover { border-color: ${t.accent}; }
-      .gpa-dropdown.open .gpa-dropdown-btn {
-        border-color: ${t.accent};
-        box-shadow: 0 0 0 3px ${t.accent}33;
-      }
-      .gpa-chevron { color: ${t.accent}; flex-shrink: 0; transition: transform 0.18s ease; }
-      .gpa-dropdown.open .gpa-chevron { transform: rotate(180deg); }
+      .gpa-dropdown-btn { display: none; }
+      .gpa-chevron { display: none; }
       .gpa-dropdown-menu {
-        position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 5;
-        background: ${t.panel}; border: 1px solid ${t.accent}55;
-        clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
-        box-shadow: 0 14px 30px rgba(0,0,0,0.5), 0 0 20px ${t.accent}22;
-        overflow: hidden; opacity: 0; transform: translateY(-4px) scale(0.98);
-        pointer-events: none; transition: opacity 0.14s ease, transform 0.14s ease;
+        position: static; display: flex; gap: 4px; flex-wrap: wrap;
+        background: transparent; border: none; box-shadow: none;
+        opacity: 1; transform: none; pointer-events: auto; overflow: visible;
       }
-      .gpa-dropdown.open .gpa-dropdown-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
       .gpa-dropdown-item {
-        display: block; width: 100%; text-align: left; padding: 9px 12px;
-        font-size: 10.5px; font-weight: 700; color: ${t.sub};
-        letter-spacing: 0.8px; text-transform: uppercase;
+        flex: 1; min-width: 58px; text-align: center; padding: 7px 3px;
+        font-size: 9px; font-weight: 700; color: ${t.sub}; line-height: 1.3;
+        letter-spacing: 0.4px; text-transform: uppercase;
         font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
-        background: transparent; border: none; border-bottom: 1px solid ${t.border};
+        background: ${t.field}; border: 1px solid ${t.accent}35;
+        clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
         cursor: pointer;
+        transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
       }
-      .gpa-dropdown-item:last-child { border-bottom: none; }
-      .gpa-dropdown-item:hover { background: ${t.field}; color: ${t.text}; }
-      .gpa-dropdown-item.active { color: ${t.accent}; }
-      .gpa-dropdown-item.active::before { content: '▸ '; }
+      .gpa-dropdown-item:hover { background: ${t.panel}; color: ${t.text}; border-color: ${t.accent}99; }
+      .gpa-dropdown-item.active {
+        color: #fff; background: ${t.accent}; border-color: ${t.accent};
+        box-shadow: 0 0 12px ${t.accent}77;
+      }
+      .gpa-dropdown-item.active::before { content: none; }
       .gpa-pane { display: none; }
       .gpa-pane.active {
         display: flex; flex-direction: column; flex: 1; min-height: 0;
@@ -1386,6 +1410,16 @@
     el.innerHTML = `<div class="gpa-answer-grid">${cells}</div>`;
   }
 
+  // The verification pass re-checks answers/confidence but doesn't carry
+  // the "h" (highlight quote) field through — restore it from the original
+  // draft by matching question labels, so highlighting still works after
+  // verification.
+  function mergeHighlightField(verified, draft) {
+    const draftByQ = {};
+    draft.forEach((d) => { draftByQ[String(d.q)] = d.h; });
+    return verified.map((v) => ({ ...v, h: v.h || draftByQ[String(v.q)] }));
+  }
+
   // For a single free-text answer, the model appends a trailing
   // "CONFIDENCE: NN" line — pull it out and show it as a small badge
   // instead of leaving it as literal text in the answer.
@@ -1402,6 +1436,132 @@
     badge.className = 'gpa-confidence-line';
     badge.innerHTML = `<span class="gpa-grid-conf ${confidenceClass(confidence)}">${confidence}% confident this is correct</span>`;
     container.appendChild(badge);
+  }
+
+  // Generic "strip a LABEL: value trailing line" extractor, used for both
+  // CONFIDENCE and HIGHLIGHT metadata lines the AI appends after its answer.
+  function extractTrailingLine(text, label) {
+    const re = new RegExp(`\\n?\\s*${label}:\\s*(.+?)\\s*$`, 'i');
+    const m = text.match(re);
+    if (!m) return { text, value: null };
+    return { text: text.slice(0, m.index).trim(), value: m[1].trim() };
+  }
+
+  // ---- On-page highlighting -------------------------------------------------
+  // Finds a verbatim snippet of page text (as quoted back by the AI) in the
+  // LIVE page DOM and wraps it in a colored highlight span. The highlight
+  // color is chosen per-element by checking what's actually behind that
+  // spot on the page, so it stays visible on both light and dark sections
+  // of the same page rather than using one fixed color everywhere.
+  let injectedHighlights = [];
+
+  function clearPageHighlights() {
+    injectedHighlights.forEach((span) => {
+      if (span && span.parentNode) {
+        const text = document.createTextNode(span.textContent);
+        span.parentNode.replaceChild(text, span);
+      }
+    });
+    injectedHighlights = [];
+    const clearBtn = panel.querySelector('#gpa-clear-highlights');
+    if (clearBtn) clearBtn.style.display = 'none';
+  }
+
+  function parseRgbString(str) {
+    const m = str && str.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\)/);
+    if (!m) return null;
+    return { r: +m[1], g: +m[2], b: +m[3], a: m[4] !== undefined ? parseFloat(m[4]) : 1 };
+  }
+
+  function relativeLuminance({ r, g, b }) {
+    const conv = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    return 0.2126 * conv(r) + 0.7152 * conv(g) + 0.0722 * conv(b);
+  }
+
+  function getEffectiveBackground(el) {
+    let node = el;
+    while (node && node !== document.documentElement) {
+      const bg = parseRgbString(getComputedStyle(node).backgroundColor);
+      if (bg && bg.a > 0.05) return bg;
+      node = node.parentElement;
+    }
+    return { r: 255, g: 255, b: 255, a: 1 };
+  }
+
+  function pickHighlightStyle(bgRgb) {
+    // Dark backgrounds get a bright neon highlight; light backgrounds get a
+    // bold saturated one — both chosen to stay visible either way, and to
+    // still look intentional against the page's own color, not just
+    // maximum-contrast ugly.
+    const lum = relativeLuminance(bgRgb);
+    return lum < 0.45
+      ? { bg: 'rgba(230, 255, 60, 0.55)', glow: 'rgba(230, 255, 60, 0.9)' }
+      : { bg: 'rgba(255, 87, 34, 0.45)', glow: 'rgba(255, 87, 34, 0.85)' };
+  }
+
+  function normalizeForMatch(s) {
+    return s.toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  // Highlights the first occurrence of `snippet` found on the page. Returns
+  // true if something was found and highlighted.
+  function highlightSnippetOnPage(snippet) {
+    if (!snippet || snippet.length < 3) return false;
+    const target = normalizeForMatch(snippet);
+    if (!target) return false;
+
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parentTag = node.parentElement && node.parentElement.tagName;
+        if (!parentTag || ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parentTag)) return NodeFilter.FILTER_REJECT;
+        if (node.parentElement.closest('#gpa-root-host')) return NodeFilter.FILTER_REJECT;
+        return node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      }
+    });
+
+    let node;
+    while ((node = walker.nextNode())) {
+      const nodeText = node.nodeValue;
+      const normalized = normalizeForMatch(nodeText);
+      const idx = normalized.indexOf(target);
+      if (idx === -1) continue;
+
+      // Map the normalized-string index back to the original string as
+      // closely as practical (whitespace collapsing can shift offsets
+      // slightly) — good enough for highlighting purposes here.
+      let start = idx, end = idx + target.length;
+      if (start > nodeText.length) start = 0;
+      if (end > nodeText.length) end = nodeText.length;
+
+      const range = document.createRange();
+      try {
+        range.setStart(node, Math.min(start, nodeText.length));
+        range.setEnd(node, Math.min(end, nodeText.length));
+      } catch (e) { continue; }
+
+      const span = document.createElement('span');
+      span.className = 'gpa-page-highlight';
+      const bg = getEffectiveBackground(node.parentElement);
+      const style = pickHighlightStyle(bg);
+      span.style.setProperty('--gpa-hl-bg', style.bg);
+      span.style.setProperty('--gpa-hl-glow', style.glow);
+      try {
+        range.surroundContents(span);
+      } catch (e) { continue; }
+
+      injectedHighlights.push(span);
+      span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const clearBtn = panel.querySelector('#gpa-clear-highlights');
+      if (clearBtn) clearBtn.style.display = 'inline-block';
+      return true;
+    }
+    return false;
+  }
+
+  function highlightSnippetsOnPage(snippets) {
+    if (!snippets) return;
+    const list = Array.isArray(snippets) ? snippets : [snippets];
+    list.forEach((s) => { if (typeof s === 'string') highlightSnippetOnPage(s); });
   }
 
   function extractPageText() {
@@ -1550,13 +1710,17 @@
     scanOutput.innerHTML = '';
     scanOutput.textContent = 'Reading the page…';
     try {
-      const sys = 'You are analyzing a quiz, exam, or worksheet on this web page, including any dropdown menus and multiple-choice/checkbox options listed under FORM CONTROLS ON THIS PAGE. Identify every question — including multi-part questions like "2a"/"2b" — and give the single best correct answer for each, using the dropdown/multiple-choice options where relevant. Respond with ONLY a JSON array in this exact shape and nothing else: [{"q":"1","a":"B","c":85}] — "q" is the question number/label as a string (use sub-labels for multi-part questions), "a" is the short correct answer, "c" is your confidence (0-100) that this specific answer is correct. If you genuinely cannot determine an answer for an item, use "a":"Unclear" and a low "c". Do not include any text outside the JSON array.';
+      const sys = 'You are analyzing a quiz, exam, or worksheet on this web page, including any dropdown menus and multiple-choice/checkbox options listed under FORM CONTROLS ON THIS PAGE. Identify every question — including multi-part questions like "2a"/"2b" — and give the single best correct answer for each, using the dropdown/multiple-choice options where relevant. Respond with ONLY a JSON array in this exact shape and nothing else: [{"q":"1","a":"B","c":85,"h":"exact verbatim phrase from PAGE TEXT for this question"}] — "q" is the question number/label as a string (use sub-labels for multi-part questions), "a" is the short correct answer, "c" is your confidence (0-100), "h" is a short exact quote (copied verbatim from PAGE TEXT, not paraphrased) that pinpoints where that question appears — so it can be found and highlighted on the page. If you genuinely cannot determine an answer for an item, use "a":"Unclear" and a low "c". Do not include any text outside the JSON array.';
       const out = await callAI(combinedText, sys, screenshotDataUrl ? [screenshotDataUrl] : null);
       const grid = tryParseAnswerGrid(out);
       if (grid) {
         quizBtn.textContent = 'Double-checking…';
-        const verified = await verifyGridAnswers(combinedText, grid, screenshotDataUrl ? [screenshotDataUrl] : null);
+        const verified = mergeHighlightField(
+          await verifyGridAnswers(combinedText, grid, screenshotDataUrl ? [screenshotDataUrl] : null),
+          grid
+        );
         renderAnswerGrid(scanOutput, verified);
+        highlightSnippetsOnPage(verified.map((it) => it.h).filter(Boolean));
       } else {
         typeText(scanOutput, out, scanOutput);
       }
@@ -1635,22 +1799,36 @@
     pageText = '';
     screenshotDataUrl = '';
     scanOutput.textContent = '';
+    clearPageHighlights();
     refreshStatus();
   });
+
+  panel.querySelector('#gpa-clear-highlights').addEventListener('click', clearPageHighlights);
 
   panel.querySelectorAll('#gpa-scan-actions .gpa-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       if (!pageText && !screenshotDataUrl) { scanOutput.textContent = 'Scan the page or capture the screen first.'; return; }
       const action = btn.dataset.action;
-      const sys = action === 'summarize'
-        ? 'Summarize the provided content in plain, everyday sentences — the shortest version that still covers the essentials. No markdown formatting (no asterisks, headers, or numbered/bulleted lists) since this is shown as plain text. If both page text and a screenshot are provided, use both together. Then, on its own final line, write exactly "CONFIDENCE: NN" where NN (0-100) is how confident you are that this summary faithfully and accurately represents the source content.'
-        : 'Give a brief, plain-language read on the provided content: what it\'s about, the main point, and anything notable — a few sentences, not a breakdown. No markdown formatting (no asterisks, headers, or numbered/bulleted lists) since this is shown as plain text. If both page text and a screenshot are provided, use both together. Then, on its own final line, write exactly "CONFIDENCE: NN" where NN (0-100) is how confident you are that this analysis is accurate.';
+      const highlightNote = ' Then, on its own final line, write "HIGHLIGHTS: " followed by a JSON array of 2-5 short exact verbatim quotes (a few words each, copied exactly from PAGE TEXT — not paraphrased) marking the most important clues/info, e.g. HIGHLIGHTS: ["exact phrase one", "exact phrase two"]. If nothing stands out or there is no page text, use an empty array.';
+      const sys = (action === 'summarize'
+        ? 'Summarize the provided content in plain, everyday sentences — the shortest version that still covers the essentials. No markdown formatting (no asterisks, headers, or numbered/bulleted lists) since this is shown as plain text. If both page text and a screenshot are provided, use both together. Then, on its own line, write exactly "CONFIDENCE: NN" where NN (0-100) is how confident you are that this summary faithfully and accurately represents the source content.'
+        : 'Give a brief, plain-language read on the provided content: what it\'s about, the main point, and anything notable — a few sentences, not a breakdown. No markdown formatting (no asterisks, headers, or numbered/bulleted lists) since this is shown as plain text. If both page text and a screenshot are provided, use both together. Then, on its own line, write exactly "CONFIDENCE: NN" where NN (0-100) is how confident you are that this analysis is accurate.'
+      ) + highlightNote;
       scanOutput.textContent = 'Thinking…';
       try {
         const textPart = pageText ? `PAGE TEXT:\n${pageText}` : '(no page text captured — use the screenshot)';
         const out = await callAI(textPart, sys, screenshotDataUrl ? [screenshotDataUrl] : null);
-        const { text: cleanText, confidence } = extractConfidenceLine(out);
-        typeText(scanOutput, cleanText, scanOutput, () => appendConfidenceBadge(scanOutput, confidence));
+        const { text: t1, value: highlightsRaw } = extractTrailingLine(out, 'HIGHLIGHTS');
+        const { text: cleanText, confidence } = extractConfidenceLine(t1);
+        typeText(scanOutput, cleanText, scanOutput, () => {
+          appendConfidenceBadge(scanOutput, confidence);
+          if (highlightsRaw) {
+            try {
+              const snippets = JSON.parse(highlightsRaw);
+              highlightSnippetsOnPage(snippets);
+            } catch (e) { /* model didn't return valid JSON — skip highlighting silently */ }
+          }
+        });
       } catch (e) {
         showError(scanOutput, e, currentProviderLabel());
       }
@@ -1669,17 +1847,22 @@
     if (!pageText && !screenshotDataUrl) { scanOutput.textContent = 'Scan the page or capture the screen first.'; return; }
     scanOutput.textContent = 'Thinking…';
     try {
-      const sys = 'Answer the question using ONLY the provided context (page text and/or screenshot). Before finalizing, double-check your answer against the context. If — and only if — the question is asking for answers to multiple numbered items (like a quiz, worksheet, or multiple-choice list), respond with ONLY a JSON array and nothing else, in exactly this shape: [{"q":"1","a":"B","c":90}] — "q" is the item number/label as a string, "a" is the short answer, "c" is your confidence (0-100) that this specific answer is correct, one object per item, no extra commentary. For any other kind of question, answer in brief plain sentences with no markdown formatting (no asterisks, headers, or lists), then on its own final line write exactly "CONFIDENCE: NN" where NN is your confidence percentage (0-100) that the answer is correct. If the answer is not in the content, say so in one short sentence and use a low confidence number.';
+      const sys = 'Answer the question using ONLY the provided context (page text and/or screenshot). Before finalizing, double-check your answer against the context. If — and only if — the question is asking for answers to multiple numbered items (like a quiz, worksheet, or multiple-choice list), respond with ONLY a JSON array and nothing else, in exactly this shape: [{"q":"1","a":"B","c":90,"h":"exact verbatim phrase from PAGE TEXT near this question"}] — "q" is the item number/label as a string, "a" is the short answer, "c" is your confidence (0-100), "h" is a short exact quote (copied verbatim from PAGE TEXT, not paraphrased) that pinpoints where that question/answer appears, one object per item, no extra commentary. For any other kind of question, answer in brief plain sentences with no markdown formatting (no asterisks, headers, or lists), then two more lines: first exactly "CONFIDENCE: NN" (0-100, your confidence the answer is correct), then exactly "HIGHLIGHT: " followed by a short exact verbatim quote from PAGE TEXT that contains or supports the answer (empty if none applies). If the answer is not in the content, say so in one short sentence and use a low confidence number.';
       const textPart = `${pageText ? `PAGE TEXT:\n${pageText}\n\n` : ''}QUESTION:\n${q}`;
       const images = screenshotDataUrl ? [screenshotDataUrl] : null;
       const out = await callAI(textPart, sys, images);
       const grid = tryParseAnswerGrid(out);
       if (grid) {
-        const verified = await verifyGridAnswers(textPart, grid, images);
+        const verified = mergeHighlightField(await verifyGridAnswers(textPart, grid, images), grid);
         renderAnswerGrid(scanOutput, verified);
+        highlightSnippetsOnPage(verified.map((it) => it.h).filter(Boolean));
       } else {
-        const { text: cleanText, confidence } = extractConfidenceLine(out);
-        typeText(scanOutput, cleanText, scanOutput, () => appendConfidenceBadge(scanOutput, confidence));
+        const { text: t1, value: highlightSnippet } = extractTrailingLine(out, 'HIGHLIGHT');
+        const { text: cleanText, confidence } = extractConfidenceLine(t1);
+        typeText(scanOutput, cleanText, scanOutput, () => {
+          appendConfidenceBadge(scanOutput, confidence);
+          if (highlightSnippet) highlightSnippetOnPage(highlightSnippet);
+        });
       }
     } catch (e) {
       showError(scanOutput, e, currentProviderLabel());
