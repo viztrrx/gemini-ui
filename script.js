@@ -32,7 +32,10 @@
  *    ambient background particles (several styles, adjustable play area)
  *    and AI provider/typing-speed/response-font controls.
  *  - All sections are switched via a dropdown in place of tabs.
- *  - Draggable panel, minimize/restore toggle.
+ *  - Draggable panel. Minimizing flies it to the bottom-right corner as
+ *    a resting spot (still fully draggable from there); the minimized
+ *    button's icon is customizable in Settings (original icon styles,
+ *    not any company's actual logo — see note in Settings section).
  *
  * SETUP
  *  1. Get a free Gemini API key from https://aistudio.google.com/apikey
@@ -87,6 +90,7 @@
   const PROVIDER_KEY = 'gpa_ai_provider';
   const SPEED_KEY = 'gpa_type_speed';
   const FONT_KEY = 'gpa_response_font';
+  const ICON_KEY = 'gpa_mini_icon';
   const PARTICLE_KEY = 'gpa_particle_style';
   const PARTICLE_SIZE_KEY = 'gpa_particle_margin';
   const PARTICLE_PANEL_W = 360;
@@ -276,6 +280,15 @@
           <button class="gpa-btn font-btn primary" data-font="mono">Typewriter</button>
           <button class="gpa-btn font-btn" data-font="system">Standard</button>
         </div>
+        <div class="gpa-sub" style="margin:14px 0 6px;">Minimized button icon</div>
+        <div class="gpa-row" style="flex-wrap: wrap;">
+          <button class="gpa-btn icon-btn primary" data-icon="dot">Dot</button>
+          <button class="gpa-btn icon-btn" data-icon="sparkle">Sparkle</button>
+          <button class="gpa-btn icon-btn" data-icon="bolt">Bolt</button>
+          <button class="gpa-btn icon-btn" data-icon="orbit">Orbit</button>
+          <button class="gpa-btn icon-btn" data-icon="chat">Chat</button>
+          <button class="gpa-btn icon-btn" data-icon="letter">Letter (G/O)</button>
+        </div>
         <div class="gpa-sub" style="margin:14px 0 6px;">Background particles</div>
         <div class="gpa-row" style="flex-wrap: wrap;">
           <button class="gpa-btn particle-btn primary" data-particle="off">Off</button>
@@ -304,9 +317,30 @@
 
   const minimized = document.createElement('div');
   minimized.className = 'gpa-mini';
-  minimized.textContent = '✦';
   minimized.style.display = 'none';
   panel.appendChild(minimized);
+
+  // Original, non-trademarked icon options for the minimized button — not
+  // reproductions of any company's actual logo. "Letter" shows G or O
+  // depending on whichever AI provider is currently active.
+  const MINI_ICONS = {
+    dot: '✦',
+    sparkle: '<svg viewBox="0 0 24 24"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/></svg>',
+    bolt: '<svg viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>',
+    orbit: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.4"/><ellipse cx="12" cy="12" rx="9" ry="4" fill="none" stroke="#fff" stroke-width="1.6"/></svg>',
+    chat: '<svg viewBox="0 0 24 24"><path d="M4 4h16v11H8l-4 4z"/></svg>'
+  };
+
+  function renderMiniIcon() {
+    const style = localStorage.getItem(ICON_KEY) || 'dot';
+    if (style === 'letter') {
+      const provider = localStorage.getItem(PROVIDER_KEY) || 'gemini';
+      minimized.textContent = provider === 'openai' ? 'O' : 'G';
+    } else {
+      minimized.innerHTML = MINI_ICONS[style] || MINI_ICONS.dot;
+    }
+  }
+  renderMiniIcon();
 
   function applyTheme(name) {
     theme = THEMES[name] ? name : 'matte';
@@ -543,7 +577,11 @@
         width: 40px; height: 40px; border-radius: 50%;
         background: ${t.accent}; color: #fff; display: flex;
         align-items: center; justify-content: center; font-size: 18px;
-        cursor: grab; box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        font-weight: 800; cursor: grab; box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+      }
+      .gpa-mini svg { width: 20px; height: 20px; fill: #fff; }
+      #gpa-root-host.gpa-settling {
+        transition: left 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
       }
       #gpa-thumb {
         display: none; width: 34px; height: 34px; object-fit: cover;
@@ -589,6 +627,7 @@
 
     function start(e) {
       dragging = host;
+      host.classList.remove('gpa-settling'); // grabbing mid-flight should feel instant, not laggy
       const rect = host.getBoundingClientRect();
       const p = 'touches' in e ? e.touches[0] : e;
       offX = p.clientX - rect.left;
@@ -637,6 +676,21 @@
     panel.style.background = v ? 'transparent' : THEMES[theme].panel;
     panel.style.boxShadow = v ? 'none' : '';
     panel.style.border = v ? 'none' : '';
+
+    if (v) {
+      // Animate to a resting spot in the bottom-right corner. Still fully
+      // draggable afterward — grabbing it mid-flight (see `start()` above)
+      // cancels the transition immediately so it never fights your cursor.
+      const margin = 24, size = 40;
+      const targetLeft = Math.max(0, window.innerWidth - size - margin);
+      const targetTop = Math.max(0, window.innerHeight - size - margin);
+      host.classList.add('gpa-settling');
+      host.style.left = targetLeft + 'px';
+      host.style.top = targetTop + 'px';
+      host.addEventListener('transitionend', () => host.classList.remove('gpa-settling'), { once: true });
+    } else {
+      host.classList.remove('gpa-settling');
+    }
 
     const activeParticleStyle = localStorage.getItem(PARTICLE_KEY) || 'off';
     if (v) {
@@ -709,6 +763,21 @@
     btn.addEventListener('click', () => {
       localStorage.setItem(PROVIDER_KEY, btn.dataset.provider);
       setProviderUI(btn.dataset.provider);
+      renderMiniIcon(); // in case "Letter" style is active — it tracks the provider
+    });
+  });
+
+  // ---- Minimized-button icon toggle --------------------------------------
+  const iconBtns = panel.querySelectorAll('.icon-btn');
+  function setIconUI(i) {
+    iconBtns.forEach((b) => b.classList.toggle('primary', b.dataset.icon === i));
+  }
+  setIconUI(localStorage.getItem(ICON_KEY) || 'dot');
+  iconBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      localStorage.setItem(ICON_KEY, btn.dataset.icon);
+      setIconUI(btn.dataset.icon);
+      renderMiniIcon();
     });
   });
 
