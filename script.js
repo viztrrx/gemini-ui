@@ -304,6 +304,12 @@
           <button class="gpa-btn game-btn" data-game="flappy">Flappy</button>
           <button class="gpa-btn game-btn" data-game="scramble">Word Scramble</button>
           <button class="gpa-btn game-btn" data-game="reaction">Reaction Test</button>
+          <button class="gpa-btn game-btn" data-game="tetris">Tetris</button>
+          <button class="gpa-btn game-btn" data-game="checkers">Checkers</button>
+          <button class="gpa-btn game-btn" data-game="sudoku">Sudoku</button>
+        </div>
+        <div class="gpa-row" style="margin-top:6px;">
+          <button id="gpa-game-restart" class="gpa-btn">🔄 Restart Game</button>
         </div>
         <div id="gpa-game-viewport" class="gpa-game-viewport"></div>
       </div>
@@ -882,6 +888,32 @@
       }
       .reaction-box.waiting { background: #e5453a; }
       .reaction-box.ready { background: #22c55e; }
+      .checkers-board { display: grid; grid-template-columns: repeat(8, 1fr); width: 224px; border: 2px solid ${t.accent}55; }
+      .checkers-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+      .checkers-cell.light { background: ${t.field}; }
+      .checkers-cell.dark { background: ${t.panel}; }
+      .checkers-cell.selected { outline: 2px solid ${t.accent}; outline-offset: -2px; }
+      .checkers-cell.valid-move { box-shadow: inset 0 0 0 3px ${t.accent}88; }
+      .checkers-piece {
+        width: 70%; height: 70%; border-radius: 50%; display: flex;
+        align-items: center; justify-content: center; font-size: 10px;
+      }
+      .checkers-piece.red { background: #e5453a; border: 2px solid #a8281f; }
+      .checkers-piece.black { background: #2a2a30; border: 2px solid #111; }
+      .sudoku-grid { display: grid; grid-template-columns: repeat(9, 1fr); width: 225px; border: 2px solid ${t.accent}66; }
+      .sudoku-cell {
+        aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+        font-size: 13px; font-weight: 700; background: ${t.field}; border: 1px solid ${t.border};
+        cursor: pointer; color: ${t.text};
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      }
+      .sudoku-cell.given { color: ${t.accent}; font-weight: 800; cursor: default; background: ${t.panel}; }
+      .sudoku-cell.selected { background: ${t.accent}33; }
+      .sudoku-cell.conflict { color: #e5453a; }
+      .sudoku-cell.border-right { border-right: 2px solid ${t.accent}66; }
+      .sudoku-cell.border-bottom { border-bottom: 2px solid ${t.accent}66; }
+      .sudoku-numrow { display: flex; gap: 3px; margin-top: 8px; flex-wrap: wrap; }
+      .sudoku-num { flex: 1; min-width: 20px; padding: 6px 0; font-size: 12px; }
 
       /* Themed scrollbars — thumb matches the current accent color */
       .gpa-body, .gpa-output, .gpa-chat, .gpa-sc-wrap {
@@ -3183,17 +3215,20 @@
     const status = document.createElement('div');
     status.className = 'gpa-game-status';
 
-    let birdY, birdV, pipes, score, over, raf;
-    const gravity = 0.35, flapV = -5.5, pipeGap = 70, pipeW = 30, pipeSpeed = 1.8;
+    let birdY, birdV, pipes, score, over, started, raf;
+    const gravity = 0.3, flapV = -5.2, pipeGap = 80, pipeW = 30, pipeSpeed = 1.6;
 
     function spawnPipe() {
       const gapY = 40 + Math.random() * (H - 80 - pipeGap);
       pipes.push({ x: W, gapY, passed: false });
     }
+    // The bird just hovers in place with no gravity and no pipes until the
+    // first click — that first click both starts the game AND does the
+    // first flap, so you're never falling before you've even had a chance
+    // to react.
     function reset() {
-      birdY = H / 2; birdV = 0; pipes = []; score = 0; over = false;
-      spawnPipe();
-      status.textContent = `Score: 0   Best: ${getBest('flappy')}`;
+      birdY = H / 2; birdV = 0; pipes = []; score = 0; over = false; started = false;
+      status.textContent = `Click the canvas to start — Best: ${getBest('flappy')}`;
     }
     function draw() {
       ctx.clearRect(0, 0, W, H);
@@ -3213,7 +3248,7 @@
       status.textContent = `Game over! Score: ${score}   Best: ${best}   (click to retry)`;
     }
     function step() {
-      if (over) return;
+      if (over || !started) return;
       birdV += gravity;
       birdY += birdV;
       pipes.forEach((p) => { p.x -= pipeSpeed; });
@@ -3229,18 +3264,22 @@
       if (!over) raf = requestAnimationFrame(step);
     }
     function flap() {
-      if (over) { reset(); draw(); raf = requestAnimationFrame(step); return; }
+      if (over) { reset(); draw(); return; }
+      if (!started) {
+        started = true;
+        spawnPipe();
+        raf = requestAnimationFrame(step);
+      }
       birdV = flapV;
     }
 
     canvas.addEventListener('click', flap);
     reset();
     draw();
-    raf = requestAnimationFrame(step);
 
     const hint = document.createElement('div');
     hint.className = 'gpa-sub';
-    hint.textContent = 'Click the canvas to flap.';
+    hint.textContent = 'Click the canvas to flap. First click starts the game.';
     root.appendChild(status);
     root.appendChild(canvas);
     root.appendChild(hint);
@@ -3358,15 +3397,416 @@
     return () => clearTimeout(timeout);
   }
 
+  // --- Tetris ---
+  function initTetris(root) {
+    const COLS = 10, ROWS = 18, CELL = 14;
+    const SHAPES = {
+      I: [[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], [[0,0,1,0],[0,0,1,0],[0,0,1,0],[0,0,1,0]], [[0,0,0,0],[0,0,0,0],[1,1,1,1],[0,0,0,0]], [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]]],
+      J: [[[1,0,0],[1,1,1],[0,0,0]], [[0,1,1],[0,1,0],[0,1,0]], [[0,0,0],[1,1,1],[0,0,1]], [[0,1,0],[0,1,0],[1,1,0]]],
+      L: [[[0,0,1],[1,1,1],[0,0,0]], [[0,1,0],[0,1,0],[0,1,1]], [[0,0,0],[1,1,1],[1,0,0]], [[1,1,0],[0,1,0],[0,1,0]]],
+      O: [[[1,1],[1,1]]],
+      S: [[[0,1,1],[1,1,0],[0,0,0]], [[0,1,0],[0,1,1],[0,0,1]]],
+      T: [[[0,1,0],[1,1,1],[0,0,0]], [[0,1,0],[0,1,1],[0,1,0]], [[0,0,0],[1,1,1],[0,1,0]], [[0,1,0],[1,1,0],[0,1,0]]],
+      Z: [[[1,1,0],[0,1,1],[0,0,0]], [[0,0,1],[0,1,1],[0,1,0]]]
+    };
+    const COLORS = { I: '#4da3ff', J: '#3b5bdb', L: '#f59f00', O: '#f5c518', S: '#22c55e', T: '#8b5cf6', Z: '#e5453a' };
+    const TYPES = Object.keys(SHAPES);
+
+    const canvas = document.createElement('canvas');
+    canvas.className = 'game-canvas';
+    canvas.width = COLS * CELL; canvas.height = ROWS * CELL;
+    const ctx = canvas.getContext('2d');
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+
+    let board, current, score, level, linesCleared, over, dropTimer, dropInterval;
+
+    function emptyBoard() { return Array.from({ length: ROWS }, () => Array(COLS).fill(null)); }
+    function randomPiece() {
+      const type = TYPES[Math.floor(Math.random() * TYPES.length)];
+      const rotations = SHAPES[type];
+      const shape = rotations[0];
+      return { type, rot: 0, shape, x: Math.floor(COLS / 2) - Math.ceil(shape[0].length / 2), y: 0 };
+    }
+    function collides(shape, px, py) {
+      for (let r = 0; r < shape.length; r++) for (let c = 0; c < shape[r].length; c++) {
+        if (!shape[r][c]) continue;
+        const bx = px + c, by = py + r;
+        if (bx < 0 || bx >= COLS || by >= ROWS) return true;
+        if (by >= 0 && board[by][bx]) return true;
+      }
+      return false;
+    }
+    function merge() {
+      current.shape.forEach((row, r) => row.forEach((v, c) => {
+        if (v) { const by = current.y + r, bx = current.x + c; if (by >= 0) board[by][bx] = current.type; }
+      }));
+    }
+    function clearLines() {
+      let cleared = 0;
+      for (let r = ROWS - 1; r >= 0; r--) {
+        if (board[r].every((cell) => cell)) {
+          board.splice(r, 1);
+          board.unshift(Array(COLS).fill(null));
+          cleared++;
+          r++;
+        }
+      }
+      if (cleared) {
+        const points = [0, 100, 300, 500, 800][cleared] || 1000;
+        score += points * level;
+        linesCleared += cleared;
+        level = 1 + Math.floor(linesCleared / 10);
+        dropInterval = Math.max(120, 600 - (level - 1) * 50);
+        status.textContent = `Score: ${score}   Level: ${level}   Best: ${getBest('tetris')}`;
+      }
+    }
+    function spawn() {
+      current = randomPiece();
+      if (collides(current.shape, current.x, current.y)) {
+        over = true;
+        const best = setBestIfHigher('tetris', score);
+        status.textContent = `Game over! Score: ${score}   Best: ${best}`;
+      }
+    }
+    function rotate() {
+      const rotations = SHAPES[current.type];
+      const nextRot = (current.rot + 1) % rotations.length;
+      const nextShape = rotations[nextRot];
+      if (!collides(nextShape, current.x, current.y)) { current.rot = nextRot; current.shape = nextShape; }
+      else if (!collides(nextShape, current.x - 1, current.y)) { current.rot = nextRot; current.shape = nextShape; current.x -= 1; }
+      else if (!collides(nextShape, current.x + 1, current.y)) { current.rot = nextRot; current.shape = nextShape; current.x += 1; }
+    }
+    function move(dx) { if (!collides(current.shape, current.x + dx, current.y)) current.x += dx; }
+    function lockPiece() { merge(); clearLines(); spawn(); }
+    function softDrop() {
+      if (!collides(current.shape, current.x, current.y + 1)) { current.y++; score += 1; }
+      else lockPiece();
+    }
+    function hardDrop() {
+      while (!collides(current.shape, current.x, current.y + 1)) { current.y++; score += 2; }
+      lockPiece();
+    }
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+        if (board[r][c]) { ctx.fillStyle = COLORS[board[r][c]]; ctx.fillRect(c * CELL + 1, r * CELL + 1, CELL - 2, CELL - 2); }
+      }
+      if (current && !over) {
+        ctx.fillStyle = COLORS[current.type];
+        current.shape.forEach((row, r) => row.forEach((v, c) => {
+          if (v) { const by = current.y + r; if (by >= 0) ctx.fillRect((current.x + c) * CELL + 1, by * CELL + 1, CELL - 2, CELL - 2); }
+        }));
+      }
+    }
+    function tick() {
+      if (over) return;
+      if (!collides(current.shape, current.x, current.y + 1)) current.y++;
+      else lockPiece();
+      draw();
+    }
+    function scheduleTick() {
+      dropTimer = setTimeout(() => { tick(); if (!over) scheduleTick(); }, dropInterval);
+    }
+    function onKey(e) {
+      if (over) return;
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' '].includes(e.key)) e.preventDefault();
+      if (e.key === 'ArrowLeft') move(-1);
+      else if (e.key === 'ArrowRight') move(1);
+      else if (e.key === 'ArrowUp') rotate();
+      else if (e.key === 'ArrowDown') softDrop();
+      else if (e.key === ' ') hardDrop();
+      draw();
+    }
+    function reset() {
+      board = emptyBoard(); score = 0; level = 1; linesCleared = 0; over = false;
+      dropInterval = 600;
+      spawn();
+      status.textContent = `Score: 0   Level: 1   Best: ${getBest('tetris')}`;
+      draw();
+    }
+
+    window.addEventListener('keydown', onKey);
+    reset();
+    scheduleTick();
+
+    const hint = document.createElement('div');
+    hint.className = 'gpa-sub';
+    hint.textContent = 'Arrows to move/rotate/soft-drop, Space to hard-drop.';
+    root.appendChild(status);
+    root.appendChild(canvas);
+    root.appendChild(hint);
+
+    return () => { clearTimeout(dropTimer); window.removeEventListener('keydown', onKey); };
+  }
+
+  // --- Checkers (vs a simple AI) ---
+  function initCheckers(root) {
+    const SIZE = 8;
+    let board, turn, selected, over, validDestinations;
+
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+    const boardEl = document.createElement('div');
+    boardEl.className = 'checkers-board';
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'gpa-btn';
+    resetBtn.textContent = 'Restart';
+    resetBtn.style.marginTop = '6px';
+
+    function isDark(r, c) { return (r + c) % 2 === 1; }
+    function setup() {
+      board = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
+      for (let r = 0; r < 3; r++) for (let c = 0; c < SIZE; c++) if (isDark(r, c)) board[r][c] = { color: 'black', king: false };
+      for (let r = 5; r < 8; r++) for (let c = 0; c < SIZE; c++) if (isDark(r, c)) board[r][c] = { color: 'red', king: false };
+    }
+    function pieceMoves(r, c) {
+      const piece = board[r][c];
+      if (!piece) return [];
+      const dirs = piece.king ? [[-1, -1], [-1, 1], [1, -1], [1, 1]] : (piece.color === 'red' ? [[-1, -1], [-1, 1]] : [[1, -1], [1, 1]]);
+      const moves = [];
+      dirs.forEach(([dr, dc]) => {
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE) {
+          if (!board[nr][nc]) moves.push({ toR: nr, toC: nc, capture: null });
+          else if (board[nr][nc].color !== piece.color) {
+            const jr = nr + dr, jc = nc + dc;
+            if (jr >= 0 && jr < SIZE && jc >= 0 && jc < SIZE && !board[jr][jc]) moves.push({ toR: jr, toC: jc, capture: { r: nr, c: nc } });
+          }
+        }
+      });
+      return moves;
+    }
+    function allMoves(color) {
+      const all = [];
+      for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+        if (board[r][c] && board[r][c].color === color) pieceMoves(r, c).forEach((m) => all.push({ from: { r, c }, ...m }));
+      }
+      return all;
+    }
+    function applyMove(from, move) {
+      const piece = board[from.r][from.c];
+      board[from.r][from.c] = null;
+      if (move.capture) board[move.capture.r][move.capture.c] = null;
+      board[move.toR][move.toC] = piece;
+      if (!piece.king && ((piece.color === 'red' && move.toR === 0) || (piece.color === 'black' && move.toR === SIZE - 1))) piece.king = true;
+    }
+    function countPieces(color) {
+      let n = 0;
+      for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) if (board[r][c] && board[r][c].color === color) n++;
+      return n;
+    }
+    function render() {
+      boardEl.innerHTML = '';
+      for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'checkers-cell ' + (isDark(r, c) ? 'dark' : 'light');
+        if (selected && selected.r === r && selected.c === c) cell.classList.add('selected');
+        if (validDestinations && validDestinations.some((m) => m.toR === r && m.toC === c)) cell.classList.add('valid-move');
+        const piece = board[r][c];
+        if (piece) {
+          const p = document.createElement('div');
+          p.className = 'checkers-piece ' + piece.color;
+          if (piece.king) { p.textContent = '♛'; p.style.color = piece.color === 'red' ? '#fff' : '#f5c518'; }
+          cell.appendChild(p);
+        }
+        cell.addEventListener('click', () => handleClick(r, c));
+        boardEl.appendChild(cell);
+      }
+    }
+    function checkGameOver() {
+      if (countPieces('black') === 0) { over = true; status.textContent = '🎉 You win! All black pieces captured.'; return; }
+      if (countPieces('red') === 0) { over = true; status.textContent = 'AI wins! All your pieces are gone.'; return; }
+    }
+    function handleClick(r, c) {
+      if (over || turn !== 'red') return;
+      const piece = board[r][c];
+      if (piece && piece.color === 'red') {
+        selected = { r, c };
+        validDestinations = pieceMoves(r, c);
+        render();
+        return;
+      }
+      if (selected && validDestinations) {
+        const move = validDestinations.find((m) => m.toR === r && m.toC === c);
+        if (move) {
+          applyMove(selected, move);
+          selected = null; validDestinations = null;
+          render();
+          checkGameOver();
+          if (!over) { turn = 'black'; status.textContent = "AI's turn…"; setTimeout(aiTurn, 400); }
+          return;
+        }
+      }
+      selected = null; validDestinations = null;
+      render();
+    }
+    function aiTurn() {
+      const moves = allMoves('black');
+      if (!moves.length) { over = true; status.textContent = '🎉 You win! AI has no moves left.'; return; }
+      const captures = moves.filter((m) => m.capture);
+      const pool = captures.length ? captures : moves;
+      const chosen = pool[Math.floor(Math.random() * pool.length)];
+      applyMove(chosen.from, chosen);
+      render();
+      checkGameOver();
+      if (!over) { turn = 'red'; status.textContent = 'Your turn (Red) — pick a piece'; }
+    }
+    function reset() {
+      setup();
+      turn = 'red'; selected = null; validDestinations = null; over = false;
+      status.textContent = 'Your turn (Red) — pick a piece';
+      render();
+    }
+
+    resetBtn.addEventListener('click', reset);
+    reset();
+    root.appendChild(status);
+    root.appendChild(boardEl);
+    root.appendChild(resetBtn);
+  }
+
+  // --- Sudoku ---
+  function initSudoku(root) {
+    let solved, puzzle, given, selected, over;
+
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+    const grid = document.createElement('div');
+    grid.className = 'sudoku-grid';
+    const numRow = document.createElement('div');
+    numRow.className = 'sudoku-numrow';
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'gpa-btn';
+    resetBtn.textContent = 'New puzzle';
+    resetBtn.style.marginTop = '6px';
+
+    function generateSolvedGrid() {
+      const g = Array.from({ length: 9 }, () => Array(9).fill(0));
+      function isValid(gr, r, c, val) {
+        for (let i = 0; i < 9; i++) if (gr[r][i] === val || gr[i][c] === val) return false;
+        const br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
+        for (let dr = 0; dr < 3; dr++) for (let dc = 0; dc < 3; dc++) if (gr[br + dr][bc + dc] === val) return false;
+        return true;
+      }
+      function fill(pos) {
+        if (pos === 81) return true;
+        const r = Math.floor(pos / 9), c = pos % 9;
+        const nums = [1, 2, 3, 4, 5, 6, 7, 8, 9].sort(() => Math.random() - 0.5);
+        for (const n of nums) {
+          if (isValid(g, r, c, n)) {
+            g[r][c] = n;
+            if (fill(pos + 1)) return true;
+            g[r][c] = 0;
+          }
+        }
+        return false;
+      }
+      fill(0);
+      return g;
+    }
+    function makePuzzle(solvedGrid, removeCount) {
+      const p = solvedGrid.map((row) => [...row]);
+      let removed = 0;
+      while (removed < removeCount) {
+        const r = Math.floor(Math.random() * 9), c = Math.floor(Math.random() * 9);
+        if (p[r][c] !== 0) { p[r][c] = 0; removed++; }
+      }
+      return p;
+    }
+    function conflicts(g, r, c, val) {
+      if (!val) return false;
+      for (let i = 0; i < 9; i++) {
+        if (i !== c && g[r][i] === val) return true;
+        if (i !== r && g[i][c] === val) return true;
+      }
+      const br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
+      for (let dr = 0; dr < 3; dr++) for (let dc = 0; dc < 3; dc++) {
+        const rr = br + dr, cc = bc + dc;
+        if ((rr !== r || cc !== c) && g[rr][cc] === val) return true;
+      }
+      return false;
+    }
+    function render() {
+      grid.innerHTML = '';
+      for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'sudoku-cell';
+        if (given[r][c]) cell.classList.add('given');
+        if (selected && selected.r === r && selected.c === c) cell.classList.add('selected');
+        if ((c + 1) % 3 === 0 && c !== 8) cell.classList.add('border-right');
+        if ((r + 1) % 3 === 0 && r !== 8) cell.classList.add('border-bottom');
+        const val = puzzle[r][c];
+        if (val) {
+          cell.textContent = val;
+          if (!given[r][c] && conflicts(puzzle, r, c, val)) cell.classList.add('conflict');
+        }
+        cell.addEventListener('click', () => {
+          if (given[r][c] || over) return;
+          selected = { r, c };
+          render();
+        });
+        grid.appendChild(cell);
+      }
+    }
+    function checkWin() {
+      for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
+        if (!puzzle[r][c]) return false;
+        if (conflicts(puzzle, r, c, puzzle[r][c])) return false;
+      }
+      return true;
+    }
+    function placeNumber(n) {
+      if (!selected || over) return;
+      const { r, c } = selected;
+      if (given[r][c]) return;
+      puzzle[r][c] = n;
+      render();
+      if (checkWin()) { over = true; status.textContent = '🎉 Solved! Great job.'; }
+      else status.textContent = 'Fill in the grid — tap a cell, then a number.';
+    }
+    for (let n = 1; n <= 9; n++) {
+      const btn = document.createElement('button');
+      btn.className = 'gpa-btn sudoku-num';
+      btn.textContent = String(n);
+      btn.addEventListener('click', () => placeNumber(n));
+      numRow.appendChild(btn);
+    }
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'gpa-btn sudoku-num';
+    clearBtn.textContent = '✕';
+    clearBtn.addEventListener('click', () => placeNumber(0));
+    numRow.appendChild(clearBtn);
+
+    function reset() {
+      solved = generateSolvedGrid();
+      puzzle = makePuzzle(solved, 44);
+      given = puzzle.map((row) => row.map((v) => v !== 0));
+      selected = null; over = false;
+      status.textContent = 'Fill in the grid — tap a cell, then a number.';
+      render();
+    }
+
+    resetBtn.addEventListener('click', reset);
+    reset();
+    root.appendChild(status);
+    root.appendChild(grid);
+    root.appendChild(numRow);
+    root.appendChild(resetBtn);
+  }
+
   const GAME_LOADERS = {
     ttt: initTTT, rps: initRPS, memory: initMemory, snake: initSnake,
     '2048': init2048, whack: initWhack, guess: initGuess, hangman: initHangman,
     wordle: initWordle, connect4: initConnect4, minesweeper: initMinesweeper,
     simon: initSimon, breakout: initBreakout, flappy: initFlappy,
-    scramble: initScramble, reaction: initReaction
+    scramble: initScramble, reaction: initReaction,
+    tetris: initTetris, checkers: initCheckers, sudoku: initSudoku
   };
 
+  let currentGameId = 'ttt';
   function loadGame(id) {
+    currentGameId = id;
     stopActiveGame();
     gameViewport.innerHTML = '';
     gameBtns.forEach((b) => b.classList.toggle('primary', b.dataset.game === id));
@@ -3374,6 +3814,7 @@
     if (loader) activeGameCleanup = loader(gameViewport) || null;
   }
   gameBtns.forEach((btn) => btn.addEventListener('click', () => loadGame(btn.dataset.game)));
+  panel.querySelector('#gpa-game-restart').addEventListener('click', () => loadGame(currentGameId));
   loadGame('ttt');
 
 })();
