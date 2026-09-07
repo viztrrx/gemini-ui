@@ -201,7 +201,7 @@
     <div class="gpa-scanline"></div>
     <div class="gpa-header" id="gpa-drag">
       <button id="gpa-min" title="Minimize">&minus;</button>
-      <span class="gpa-title">Gemini Page Assistant</span>
+      <span class="gpa-title">Agent Console</span>
       <span class="gpa-dot"></span>
       <button id="gpa-close" title="Close">&times;</button>
     </div>
@@ -296,6 +296,14 @@
           <button class="gpa-btn game-btn" data-game="whack">Whack-a-Mole</button>
           <button class="gpa-btn game-btn" data-game="guess">Guess Number</button>
           <button class="gpa-btn game-btn" data-game="hangman">Hangman</button>
+          <button class="gpa-btn game-btn" data-game="wordle">Wordle</button>
+          <button class="gpa-btn game-btn" data-game="connect4">Connect 4</button>
+          <button class="gpa-btn game-btn" data-game="minesweeper">Minesweeper</button>
+          <button class="gpa-btn game-btn" data-game="simon">Simon</button>
+          <button class="gpa-btn game-btn" data-game="breakout">Breakout</button>
+          <button class="gpa-btn game-btn" data-game="flappy">Flappy</button>
+          <button class="gpa-btn game-btn" data-game="scramble">Word Scramble</button>
+          <button class="gpa-btn game-btn" data-game="reaction">Reaction Test</button>
         </div>
         <div id="gpa-game-viewport" class="gpa-game-viewport"></div>
       </div>
@@ -828,6 +836,52 @@
         font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
         color: ${t.accent};
       }
+      .wordle-grid { display: flex; flex-direction: column; gap: 5px; margin: 6px 0; }
+      .wordle-row { display: flex; gap: 5px; }
+      .wordle-tile {
+        width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+        font-weight: 800; font-size: 16px; border: 1px solid ${t.accent}44; border-radius: 4px;
+        background: ${t.field}; color: ${t.text};
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      }
+      .wordle-tile.correct { background: #22c55e; border-color: #22c55e; color: #fff; }
+      .wordle-tile.present { background: #eab308; border-color: #eab308; color: #111; }
+      .wordle-tile.absent { background: ${t.border}; border-color: ${t.border}; color: ${t.sub}; }
+      .c4-board { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; width: 238px; background: ${t.field}; padding: 6px; border-radius: 6px; }
+      .c4-cell { aspect-ratio: 1; border-radius: 50%; background: ${t.panel}; border: 1px solid ${t.accent}33; cursor: pointer; }
+      .c4-cell.c4-red { background: #e5453a; border-color: #e5453a; }
+      .c4-cell.c4-yellow { background: #f5c518; border-color: #f5c518; }
+      .mine-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; width: 216px; }
+      .mine-cell {
+        aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+        font-size: 11px; font-weight: 800; background: ${t.field}; border: 1px solid ${t.accent}33;
+        cursor: pointer; border-radius: 2px; user-select: none;
+      }
+      .mine-cell.revealed { background: ${t.panel}; cursor: default; }
+      .mine-cell.mine { background: #e5453a55; }
+      .mine-cell.n1 { color: #4da3ff; }
+      .mine-cell.n2 { color: #22c55e; }
+      .mine-cell.n3 { color: #e5453a; }
+      .mine-cell.n4 { color: #8b5cf6; }
+      .mine-cell.n5 { color: #f5c518; }
+      .mine-cell.n6 { color: #06b6d4; }
+      .mine-cell.n7 { color: ${t.text}; }
+      .mine-cell.n8 { color: ${t.sub}; }
+      .simon-pad { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; width: 160px; height: 160px; }
+      .simon-btn { border-radius: 10px; cursor: pointer; opacity: 0.55; transition: opacity 0.1s ease; }
+      .simon-btn.active { opacity: 1; box-shadow: 0 0 14px currentColor; }
+      .simon-red { background: #e5453a; }
+      .simon-blue { background: #4da3ff; }
+      .simon-green { background: #22c55e; }
+      .simon-yellow { background: #f5c518; }
+      .reaction-box {
+        width: 100%; max-width: 240px; height: 120px; border-radius: 10px;
+        display: flex; align-items: center; justify-content: center; text-align: center;
+        font-weight: 800; font-size: 13px; cursor: pointer; padding: 10px; color: #fff;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      }
+      .reaction-box.waiting { background: #e5453a; }
+      .reaction-box.ready { background: #22c55e; }
 
       /* Themed scrollbars — thumb matches the current accent color */
       .gpa-body, .gpa-output, .gpa-chat, .gpa-sc-wrap {
@@ -2689,9 +2743,627 @@
     root.appendChild(resetBtn);
   }
 
+  // --- Wordle ---
+  function initWordle(root) {
+    const WORDS = ['REACT', 'BRAVE', 'STONE', 'PLANE', 'GRAPE', 'SHINE', 'CLOUD', 'FLAME', 'TRAIN', 'SWEET', 'BLEND', 'CRISP', 'FLUTE', 'GLOBE', 'HOUSE', 'JUICE', 'KNIFE', 'LEMON', 'MONEY', 'NURSE'];
+    const target = WORDS[Math.floor(Math.random() * WORDS.length)];
+    let guesses = [];
+    let over = false;
+
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+    const grid = document.createElement('div');
+    grid.className = 'wordle-grid';
+    const row = document.createElement('div');
+    row.className = 'gpa-row';
+    const input = document.createElement('input');
+    input.className = 'gpa-input';
+    input.maxLength = 5;
+    input.placeholder = '5-letter word…';
+    const btn = document.createElement('button');
+    btn.className = 'gpa-btn primary';
+    btn.textContent = 'Guess';
+
+    function evaluate(guess) {
+      const result = Array(5).fill('absent');
+      const targetArr = target.split('');
+      const guessArr = guess.split('');
+      const counts = {};
+      targetArr.forEach((l) => { counts[l] = (counts[l] || 0) + 1; });
+      for (let i = 0; i < 5; i++) {
+        if (guessArr[i] === targetArr[i]) { result[i] = 'correct'; counts[guessArr[i]]--; }
+      }
+      for (let i = 0; i < 5; i++) {
+        if (result[i] === 'correct') continue;
+        if (counts[guessArr[i]] > 0) { result[i] = 'present'; counts[guessArr[i]]--; }
+      }
+      return result;
+    }
+    function render() {
+      grid.innerHTML = '';
+      for (let r = 0; r < 6; r++) {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'wordle-row';
+        const g = guesses[r];
+        for (let c = 0; c < 5; c++) {
+          const tile = document.createElement('div');
+          tile.className = 'wordle-tile';
+          if (g) { tile.textContent = g.word[c]; tile.classList.add(g.result[c]); }
+          rowEl.appendChild(tile);
+        }
+        grid.appendChild(rowEl);
+      }
+    }
+    function submitGuess() {
+      if (over) return;
+      const val = input.value.trim().toUpperCase();
+      if (val.length !== 5) { status.textContent = 'Enter a 5-letter word.'; return; }
+      const result = evaluate(val);
+      guesses.push({ word: val, result });
+      input.value = '';
+      render();
+      if (val === target) { over = true; status.textContent = `🎉 Solved in ${guesses.length}/6!`; }
+      else if (guesses.length >= 6) { over = true; status.textContent = `Out of guesses! The word was ${target}.`; }
+      else { status.textContent = `${6 - guesses.length} guesses left.`; }
+    }
+    btn.addEventListener('click', submitGuess);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitGuess(); });
+
+    status.textContent = 'Guess the 5-letter word! Green = right spot, yellow = wrong spot.';
+    row.appendChild(input);
+    row.appendChild(btn);
+    root.appendChild(status);
+    root.appendChild(grid);
+    root.appendChild(row);
+    render();
+  }
+
+  // --- Connect Four (vs a simple AI) ---
+  function initConnect4(root) {
+    const COLS = 7, ROWS = 6;
+    let board, over;
+
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+    const boardEl = document.createElement('div');
+    boardEl.className = 'c4-board';
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'gpa-btn';
+    resetBtn.textContent = 'Restart';
+    resetBtn.style.marginTop = '6px';
+
+    function emptyBoard() { return Array.from({ length: ROWS }, () => Array(COLS).fill(null)); }
+    function lowestEmptyRow(b, col) {
+      for (let r = ROWS - 1; r >= 0; r--) if (!b[r][col]) return r;
+      return -1;
+    }
+    function checkWin(b, player) {
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+        if (b[r][c] !== player) continue;
+        if (c + 3 < COLS && b[r][c + 1] === player && b[r][c + 2] === player && b[r][c + 3] === player) return true;
+        if (r + 3 < ROWS && b[r + 1][c] === player && b[r + 2][c] === player && b[r + 3][c] === player) return true;
+        if (r + 3 < ROWS && c + 3 < COLS && b[r + 1][c + 1] === player && b[r + 2][c + 2] === player && b[r + 3][c + 3] === player) return true;
+        if (r - 3 >= 0 && c + 3 < COLS && b[r - 1][c + 1] === player && b[r - 2][c + 2] === player && b[r - 3][c + 3] === player) return true;
+      }
+      return false;
+    }
+    function isFull(b) { return b.every((row) => row.every((cell) => cell)); }
+    function aiMove() {
+      const validCols = [];
+      for (let c = 0; c < COLS; c++) if (lowestEmptyRow(board, c) !== -1) validCols.push(c);
+      for (const c of validCols) { const r = lowestEmptyRow(board, c); const t = board.map((row) => [...row]); t[r][c] = 'Y'; if (checkWin(t, 'Y')) return c; }
+      for (const c of validCols) { const r = lowestEmptyRow(board, c); const t = board.map((row) => [...row]); t[r][c] = 'R'; if (checkWin(t, 'R')) return c; }
+      const centerOrder = [3, 2, 4, 1, 5, 0, 6].filter((c) => validCols.includes(c));
+      return centerOrder[0];
+    }
+    function render() {
+      boardEl.innerHTML = '';
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'c4-cell';
+        if (board[r][c] === 'R') cell.classList.add('c4-red');
+        if (board[r][c] === 'Y') cell.classList.add('c4-yellow');
+        cell.addEventListener('click', () => drop(c));
+        boardEl.appendChild(cell);
+      }
+    }
+    function drop(col) {
+      if (over) return;
+      const r = lowestEmptyRow(board, col);
+      if (r === -1) return;
+      board[r][col] = 'R';
+      if (checkWin(board, 'R')) { over = true; render(); status.textContent = '🎉 You win!'; return; }
+      if (isFull(board)) { over = true; render(); status.textContent = "It's a draw!"; return; }
+      render();
+      setTimeout(() => {
+        const aiCol = aiMove();
+        if (aiCol === undefined) return;
+        const ar = lowestEmptyRow(board, aiCol);
+        board[ar][aiCol] = 'Y';
+        if (checkWin(board, 'Y')) { over = true; render(); status.textContent = 'AI wins!'; return; }
+        if (isFull(board)) { over = true; render(); status.textContent = "It's a draw!"; return; }
+        render();
+      }, 300);
+    }
+    function reset() {
+      board = emptyBoard(); over = false;
+      status.textContent = 'Your turn (Red) — click a column';
+      render();
+    }
+    resetBtn.addEventListener('click', reset);
+    reset();
+    root.appendChild(status);
+    root.appendChild(boardEl);
+    root.appendChild(resetBtn);
+  }
+
+  // --- Minesweeper ---
+  function initMinesweeper(root) {
+    const SIZE = 8, MINES = 10;
+    let board, revealed, flagged, over, firstClick;
+
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+    const grid = document.createElement('div');
+    grid.className = 'mine-grid';
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'gpa-btn';
+    resetBtn.textContent = 'New game';
+    resetBtn.style.marginTop = '6px';
+
+    function idx(r, c) { return r * SIZE + c; }
+    function neighbors(r, c) {
+      const res = [];
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE) res.push([nr, nc]);
+      }
+      return res;
+    }
+    function setup(avoidR, avoidC) {
+      board = Array(SIZE * SIZE).fill(0);
+      let placed = 0;
+      while (placed < MINES) {
+        const r = Math.floor(Math.random() * SIZE), c = Math.floor(Math.random() * SIZE);
+        if ((r === avoidR && c === avoidC) || board[idx(r, c)] === -1) continue;
+        board[idx(r, c)] = -1;
+        placed++;
+      }
+      for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+        if (board[idx(r, c)] === -1) continue;
+        let count = 0;
+        neighbors(r, c).forEach(([nr, nc]) => { if (board[idx(nr, nc)] === -1) count++; });
+        board[idx(r, c)] = count;
+      }
+    }
+    function floodReveal(r, c) {
+      const stack = [[r, c]];
+      while (stack.length) {
+        const [cr, cc] = stack.pop();
+        const i = idx(cr, cc);
+        if (revealed[i] || flagged[i]) continue;
+        revealed[i] = true;
+        if (board[i] === 0) neighbors(cr, cc).forEach(([nr, nc]) => { if (!revealed[idx(nr, nc)]) stack.push([nr, nc]); });
+      }
+    }
+    function render() {
+      grid.innerHTML = '';
+      for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+        const i = idx(r, c);
+        const cell = document.createElement('div');
+        cell.className = 'mine-cell';
+        if (flagged[i] && !revealed[i]) cell.textContent = '🚩';
+        else if (revealed[i]) {
+          cell.classList.add('revealed');
+          if (board[i] === -1) { cell.textContent = '💣'; cell.classList.add('mine'); }
+          else if (board[i] > 0) { cell.textContent = board[i]; cell.classList.add('n' + board[i]); }
+        }
+        cell.addEventListener('click', () => reveal(r, c));
+        cell.addEventListener('contextmenu', (e) => { e.preventDefault(); toggleFlag(r, c); });
+        grid.appendChild(cell);
+      }
+    }
+    function reveal(r, c) {
+      if (over) return;
+      const i = idx(r, c);
+      if (flagged[i] || revealed[i]) return;
+      if (firstClick) { setup(r, c); firstClick = false; }
+      if (board[i] === -1) {
+        over = true;
+        for (let k = 0; k < board.length; k++) if (board[k] === -1) revealed[k] = true;
+        render();
+        status.textContent = '💥 Boom! Game over.';
+        return;
+      }
+      floodReveal(r, c);
+      render();
+      checkWin();
+    }
+    function toggleFlag(r, c) {
+      if (over) return;
+      const i = idx(r, c);
+      if (revealed[i]) return;
+      flagged[i] = !flagged[i];
+      render();
+    }
+    function checkWin() {
+      const safeCells = SIZE * SIZE - MINES;
+      const revealedCount = revealed.filter(Boolean).length;
+      if (revealedCount === safeCells) { over = true; status.textContent = '🎉 You cleared the field!'; }
+      else status.textContent = `Mines: ${MINES}   Flags: ${flagged.filter(Boolean).length}`;
+    }
+    function reset() {
+      board = Array(SIZE * SIZE).fill(0);
+      revealed = Array(SIZE * SIZE).fill(false);
+      flagged = Array(SIZE * SIZE).fill(false);
+      over = false; firstClick = true;
+      status.textContent = `Mines: ${MINES}   Left-click reveal, right-click flag`;
+      render();
+    }
+    resetBtn.addEventListener('click', reset);
+    reset();
+    root.appendChild(status);
+    root.appendChild(grid);
+    root.appendChild(resetBtn);
+  }
+
+  // --- Simon ---
+  function initSimon(root) {
+    const colors = ['red', 'blue', 'green', 'yellow'];
+    let sequence = [], playerIndex = 0, over = true, accepting = false;
+
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+    const pad = document.createElement('div');
+    pad.className = 'simon-pad';
+    const startBtn = document.createElement('button');
+    startBtn.className = 'gpa-btn primary';
+    startBtn.textContent = 'Start';
+    startBtn.style.marginTop = '6px';
+
+    const btns = {};
+    colors.forEach((color) => {
+      const b = document.createElement('div');
+      b.className = `simon-btn simon-${color}`;
+      b.addEventListener('click', () => handleClick(color));
+      btns[color] = b;
+      pad.appendChild(b);
+    });
+
+    function flash(color, duration = 350) {
+      return new Promise((resolve) => {
+        btns[color].classList.add('active');
+        setTimeout(() => { btns[color].classList.remove('active'); resolve(); }, duration);
+      });
+    }
+    async function playSequence() {
+      accepting = false;
+      status.textContent = `Watch closely… (Round ${sequence.length})`;
+      await new Promise((r) => setTimeout(r, 400));
+      for (const color of sequence) {
+        await flash(color);
+        await new Promise((r) => setTimeout(r, 150));
+      }
+      accepting = true;
+      playerIndex = 0;
+      status.textContent = 'Your turn — repeat the sequence!';
+    }
+    function nextRound() {
+      sequence.push(colors[Math.floor(Math.random() * 4)]);
+      playSequence();
+    }
+    function handleClick(color) {
+      if (!accepting || over) return;
+      flash(color, 200);
+      if (color === sequence[playerIndex]) {
+        playerIndex++;
+        if (playerIndex === sequence.length) { accepting = false; setTimeout(nextRound, 600); }
+      } else {
+        over = true; accepting = false;
+        const best = setBestIfHigher('simon', sequence.length - 1);
+        status.textContent = `Game over! You reached round ${sequence.length}. Best: ${best}`;
+      }
+    }
+    startBtn.addEventListener('click', () => { sequence = []; over = false; nextRound(); });
+
+    status.textContent = `Best: ${getBest('simon')} — press Start`;
+    root.appendChild(status);
+    root.appendChild(pad);
+    root.appendChild(startBtn);
+  }
+
+  // --- Breakout ---
+  function initBreakout(root) {
+    const W = 220, H = 260;
+    const canvas = document.createElement('canvas');
+    canvas.className = 'game-canvas';
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+
+    const paddleW = 44, paddleH = 6;
+    let paddleX = W / 2 - paddleW / 2;
+    let ballX, ballY, ballVX, ballVY, bricks, lives, score, over, raf;
+    const rows = 4, cols = 7, brickW = W / cols, brickH = 10, brickTop = 20;
+
+    function resetBall() { ballX = W / 2; ballY = H - 30; ballVX = 1.6 * (Math.random() < 0.5 ? -1 : 1); ballVY = -2; }
+    function reset() {
+      bricks = [];
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) bricks.push({ r, c, alive: true });
+      lives = 3; score = 0; over = false;
+      paddleX = W / 2 - paddleW / 2;
+      resetBall();
+      status.textContent = `Lives: ${lives}   Score: ${score}`;
+    }
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      bricks.forEach((b) => {
+        if (!b.alive) return;
+        ctx.fillStyle = ['#e5453a', '#f5c518', '#4da3ff', '#22c55e'][b.r % 4];
+        ctx.fillRect(b.c * brickW + 1, brickTop + b.r * brickH + 1, brickW - 2, brickH - 2);
+      });
+      ctx.fillStyle = THEMES[theme].accent;
+      ctx.fillRect(paddleX, H - 12, paddleW, paddleH);
+      ctx.beginPath();
+      ctx.arc(ballX, ballY, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+    }
+    function step() {
+      if (over) return;
+      ballX += ballVX; ballY += ballVY;
+      if (ballX < 4 || ballX > W - 4) ballVX *= -1;
+      if (ballY < 4) ballVY *= -1;
+      if (ballY > H - 16 && ballY < H - 8 && ballX > paddleX && ballX < paddleX + paddleW) {
+        ballVY = -Math.abs(ballVY);
+        const hitPos = (ballX - (paddleX + paddleW / 2)) / (paddleW / 2);
+        ballVX = hitPos * 3;
+      }
+      if (ballY > H) {
+        lives--;
+        if (lives <= 0) {
+          over = true;
+          const best = setBestIfHigher('breakout', score);
+          status.textContent = `Game over! Score: ${score}   Best: ${best}`;
+        } else {
+          resetBall();
+          status.textContent = `Lives: ${lives}   Score: ${score}`;
+        }
+      }
+      const bcol = Math.floor(ballX / brickW);
+      const brow = Math.floor((ballY - brickTop) / brickH);
+      if (brow >= 0 && brow < rows && bcol >= 0 && bcol < cols) {
+        const brick = bricks.find((b) => b.r === brow && b.c === bcol && b.alive);
+        if (brick) {
+          brick.alive = false;
+          ballVY *= -1;
+          score += 10;
+          status.textContent = `Lives: ${lives}   Score: ${score}`;
+          if (bricks.every((b) => !b.alive)) {
+            over = true;
+            const best = setBestIfHigher('breakout', score);
+            status.textContent = `🎉 Cleared! Score: ${score}   Best: ${best}`;
+          }
+        }
+      }
+      draw();
+      if (!over) raf = requestAnimationFrame(step);
+    }
+    function onMove(e) {
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+      paddleX = Math.max(0, Math.min(W - paddleW, x - paddleW / 2));
+    }
+    canvas.addEventListener('mousemove', onMove);
+    canvas.addEventListener('touchmove', onMove, { passive: true });
+
+    reset();
+    draw();
+    raf = requestAnimationFrame(step);
+
+    const hint = document.createElement('div');
+    hint.className = 'gpa-sub';
+    hint.textContent = 'Move your mouse over the canvas to steer the paddle.';
+    root.appendChild(status);
+    root.appendChild(canvas);
+    root.appendChild(hint);
+
+    return () => { cancelAnimationFrame(raf); canvas.removeEventListener('mousemove', onMove); canvas.removeEventListener('touchmove', onMove); };
+  }
+
+  // --- Flappy ---
+  function initFlappy(root) {
+    const W = 220, H = 260;
+    const canvas = document.createElement('canvas');
+    canvas.className = 'game-canvas';
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+
+    let birdY, birdV, pipes, score, over, raf;
+    const gravity = 0.35, flapV = -5.5, pipeGap = 70, pipeW = 30, pipeSpeed = 1.8;
+
+    function spawnPipe() {
+      const gapY = 40 + Math.random() * (H - 80 - pipeGap);
+      pipes.push({ x: W, gapY, passed: false });
+    }
+    function reset() {
+      birdY = H / 2; birdV = 0; pipes = []; score = 0; over = false;
+      spawnPipe();
+      status.textContent = `Score: 0   Best: ${getBest('flappy')}`;
+    }
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = THEMES[theme].accent;
+      pipes.forEach((p) => {
+        ctx.fillRect(p.x, 0, pipeW, p.gapY);
+        ctx.fillRect(p.x, p.gapY + pipeGap, pipeW, H - (p.gapY + pipeGap));
+      });
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(40, birdY, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    function endGame() {
+      over = true;
+      const best = setBestIfHigher('flappy', score);
+      status.textContent = `Game over! Score: ${score}   Best: ${best}   (click to retry)`;
+    }
+    function step() {
+      if (over) return;
+      birdV += gravity;
+      birdY += birdV;
+      pipes.forEach((p) => { p.x -= pipeSpeed; });
+      if (pipes.length && pipes[0].x < -pipeW) pipes.shift();
+      if (pipes.length && pipes[pipes.length - 1].x < W - 130) spawnPipe();
+      pipes.forEach((p) => {
+        if (!p.passed && p.x + pipeW < 40) { p.passed = true; score++; status.textContent = `Score: ${score}   Best: ${getBest('flappy')}`; }
+        const inX = 40 + 6 > p.x && 40 - 6 < p.x + pipeW;
+        if (inX && (birdY - 6 < p.gapY || birdY + 6 > p.gapY + pipeGap)) endGame();
+      });
+      if (birdY - 6 < 0 || birdY + 6 > H) endGame();
+      draw();
+      if (!over) raf = requestAnimationFrame(step);
+    }
+    function flap() {
+      if (over) { reset(); draw(); raf = requestAnimationFrame(step); return; }
+      birdV = flapV;
+    }
+
+    canvas.addEventListener('click', flap);
+    reset();
+    draw();
+    raf = requestAnimationFrame(step);
+
+    const hint = document.createElement('div');
+    hint.className = 'gpa-sub';
+    hint.textContent = 'Click the canvas to flap.';
+    root.appendChild(status);
+    root.appendChild(canvas);
+    root.appendChild(hint);
+
+    return () => { cancelAnimationFrame(raf); canvas.removeEventListener('click', flap); };
+  }
+
+  // --- Word Scramble ---
+  function initScramble(root) {
+    const words = ['PLANET', 'GUITAR', 'WHISPER', 'JUNGLE', 'PYTHON', 'CANDLE', 'GALAXY', 'MARBLE', 'SILVER', 'WINTER'];
+    let word, over;
+
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+    const scrambledEl = document.createElement('div');
+    scrambledEl.className = 'hangman-word';
+    const row = document.createElement('div');
+    row.className = 'gpa-row';
+    const input = document.createElement('input');
+    input.className = 'gpa-input';
+    input.placeholder = 'Unscramble it…';
+    const btn = document.createElement('button');
+    btn.className = 'gpa-btn primary';
+    btn.textContent = 'Submit';
+    const row2 = document.createElement('div');
+    row2.className = 'gpa-row';
+    row2.style.marginTop = '6px';
+    const hintBtn = document.createElement('button');
+    hintBtn.className = 'gpa-btn';
+    hintBtn.textContent = 'Hint';
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'gpa-btn';
+    nextBtn.textContent = 'New word';
+
+    function scramble(w) {
+      const arr = w.split('');
+      let attempt;
+      do { attempt = [...arr].sort(() => Math.random() - 0.5).join(''); } while (attempt === w);
+      return attempt;
+    }
+    function reset() {
+      word = words[Math.floor(Math.random() * words.length)];
+      over = false;
+      scrambledEl.textContent = scramble(word);
+      status.textContent = 'Unscramble the word!';
+      input.value = '';
+    }
+    function submit() {
+      if (over) return;
+      if (input.value.trim().toUpperCase() === word) { over = true; status.textContent = '🎉 Correct!'; }
+      else status.textContent = 'Not quite — try again.';
+    }
+    hintBtn.addEventListener('click', () => { if (!over) status.textContent = `Hint: starts with "${word[0]}"`; });
+    btn.addEventListener('click', submit);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    nextBtn.addEventListener('click', reset);
+
+    reset();
+    row.appendChild(input);
+    row.appendChild(btn);
+    row2.appendChild(hintBtn);
+    row2.appendChild(nextBtn);
+    root.appendChild(status);
+    root.appendChild(scrambledEl);
+    root.appendChild(row);
+    root.appendChild(row2);
+  }
+
+  // --- Reaction Time Test ---
+  function initReaction(root) {
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+    const box = document.createElement('div');
+    box.className = 'reaction-box waiting';
+    box.textContent = 'Click to start';
+    let state = 'idle', startTime, timeout;
+
+    function startRound() {
+      state = 'waiting';
+      box.className = 'reaction-box waiting';
+      box.textContent = 'Wait for green…';
+      const delay = 1000 + Math.random() * 2500;
+      timeout = setTimeout(() => {
+        state = 'ready';
+        startTime = performance.now();
+        box.className = 'reaction-box ready';
+        box.textContent = 'CLICK NOW!';
+      }, delay);
+    }
+    box.addEventListener('click', () => {
+      if (state === 'idle') { startRound(); return; }
+      if (state === 'waiting') {
+        clearTimeout(timeout);
+        state = 'idle';
+        box.className = 'reaction-box waiting';
+        box.textContent = 'Too soon! Click to try again.';
+        return;
+      }
+      if (state === 'ready') {
+        const reactionMs = Math.round(performance.now() - startTime);
+        const key = 'gpa_game_best_reaction_ms';
+        const prevBest = parseInt(localStorage.getItem(key), 10);
+        const newBest = isNaN(prevBest) || reactionMs < prevBest ? reactionMs : prevBest;
+        localStorage.setItem(key, String(newBest));
+        state = 'idle';
+        box.className = 'reaction-box waiting';
+        box.textContent = `${reactionMs}ms — Best: ${newBest}ms. Click to try again.`;
+      }
+    });
+
+    status.textContent = 'Test your reflexes!';
+    root.appendChild(status);
+    root.appendChild(box);
+
+    return () => clearTimeout(timeout);
+  }
+
   const GAME_LOADERS = {
     ttt: initTTT, rps: initRPS, memory: initMemory, snake: initSnake,
-    '2048': init2048, whack: initWhack, guess: initGuess, hangman: initHangman
+    '2048': init2048, whack: initWhack, guess: initGuess, hangman: initHangman,
+    wordle: initWordle, connect4: initConnect4, minesweeper: initMinesweeper,
+    simon: initSimon, breakout: initBreakout, flappy: initFlappy,
+    scramble: initScramble, reaction: initReaction
   };
 
   function loadGame(id) {
