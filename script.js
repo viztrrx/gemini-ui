@@ -275,6 +275,31 @@
           <button id="gpa-sc-load" class="gpa-btn">Load</button>
         </div>
         <div id="gpa-sc-wrap" class="gpa-sc-wrap"></div>
+
+        <div class="gpa-sub" style="margin:14px 0 6px;">📁 Local files — plays fully offline, nothing leaves your device</div>
+        <div class="gpa-row">
+          <button id="gpa-local-add-btn" class="gpa-btn">Add audio files</button>
+          <input type="file" id="gpa-local-file-input" accept="audio/*" multiple style="display:none" />
+        </div>
+        <div id="gpa-local-playlist" class="gpa-local-playlist"></div>
+        <div id="gpa-local-player" class="gpa-local-player" style="display:none;">
+          <div id="gpa-local-nowplaying" class="gpa-sub"></div>
+          <div class="gpa-row">
+            <input type="range" id="gpa-local-seek" class="gpa-range" min="0" max="100" value="0" />
+          </div>
+          <div class="gpa-row" style="justify-content:space-between;">
+            <span id="gpa-local-time" class="gpa-sub">0:00 / 0:00</span>
+          </div>
+          <div class="gpa-row" style="justify-content:center; gap:10px;">
+            <button id="gpa-local-prev" class="gpa-btn">⏮</button>
+            <button id="gpa-local-playpause" class="gpa-btn primary">▶</button>
+            <button id="gpa-local-next" class="gpa-btn">⏭</button>
+          </div>
+          <div class="gpa-row">
+            <span class="gpa-sub">🔊</span>
+            <input type="range" id="gpa-local-volume" class="gpa-range" min="0" max="100" value="80" />
+          </div>
+        </div>
       </div>
 
       <div class="gpa-pane" data-pane="browser">
@@ -785,6 +810,19 @@
       }
       .gpa-sc-wrap { flex: 1; overflow-y: auto; }
       .gpa-sc-frame { width: 100%; height: 166px; border: 0; border-radius: 8px; }
+      .gpa-local-playlist { max-height: 120px; overflow-y: auto; margin-top: 6px; display: flex; flex-direction: column; gap: 3px; }
+      .gpa-local-track {
+        display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+        background: ${t.field}; border: 1px solid ${t.border}; border-radius: 6px;
+        cursor: pointer; font-size: 11px; color: ${t.text};
+      }
+      .gpa-local-track:hover { border-color: ${t.accent}; }
+      .gpa-local-track.playing { border-color: ${t.accent}; background: ${t.accent}18; color: ${t.accent}; }
+      .gpa-local-track-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .gpa-local-track-remove { flex-shrink: 0; opacity: 0.6; cursor: pointer; padding: 0 4px; }
+      .gpa-local-track-remove:hover { opacity: 1; color: #e5453a; }
+      .gpa-local-player { margin-top: 10px; padding-top: 8px; border-top: 1px solid ${t.border}; }
+      #gpa-local-nowplaying { text-align: center; margin-bottom: 6px; font-weight: 700; color: ${t.accent}; }
       .game-btn { flex: 1 1 auto; min-width: 64px; font-size: 9.5px; }
       .gpa-game-viewport {
         flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px;
@@ -2181,6 +2219,116 @@
   }
   musicSearchBtn.addEventListener('click', playMusicSearch);
   musicQuery.addEventListener('keydown', (e) => { if (e.key === 'Enter') playMusicSearch(); });
+
+  // ---- Local file player (fully offline — no network, no website involved) --
+  // Files are read straight from disk via the browser's File API and played
+  // through a normal <audio> element using a blob: URL. Once a file is
+  // loaded, playback needs no internet connection at all. The playlist is
+  // for this browsing session only — it can't be saved to disk from here,
+  // so it resets if you reload the page or reopen the panel later.
+  const localAddBtn = panel.querySelector('#gpa-local-add-btn');
+  const localFileInput = panel.querySelector('#gpa-local-file-input');
+  const localPlaylistEl = panel.querySelector('#gpa-local-playlist');
+  const localPlayerEl = panel.querySelector('#gpa-local-player');
+  const localNowPlaying = panel.querySelector('#gpa-local-nowplaying');
+  const localSeek = panel.querySelector('#gpa-local-seek');
+  const localTimeEl = panel.querySelector('#gpa-local-time');
+  const localPlayPauseBtn = panel.querySelector('#gpa-local-playpause');
+  const localPrevBtn = panel.querySelector('#gpa-local-prev');
+  const localNextBtn = panel.querySelector('#gpa-local-next');
+  const localVolume = panel.querySelector('#gpa-local-volume');
+
+  let localPlaylist = [];
+  let localCurrentIndex = -1;
+  const localAudio = new Audio();
+  localAudio.volume = 0.8;
+
+  function formatTime(sec) {
+    if (!isFinite(sec) || sec < 0) sec = 0;
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
+  function renderLocalPlaylist() {
+    localPlaylistEl.innerHTML = '';
+    localPlaylist.forEach((track, i) => {
+      const row = document.createElement('div');
+      row.className = 'gpa-local-track' + (i === localCurrentIndex ? ' playing' : '');
+      const name = document.createElement('span');
+      name.className = 'gpa-local-track-name';
+      name.textContent = track.name;
+      const remove = document.createElement('span');
+      remove.className = 'gpa-local-track-remove';
+      remove.textContent = '✕';
+      remove.title = 'Remove';
+      remove.addEventListener('click', (e) => { e.stopPropagation(); removeLocalTrack(i); });
+      row.appendChild(name);
+      row.appendChild(remove);
+      row.addEventListener('click', () => playLocalTrack(i));
+      localPlaylistEl.appendChild(row);
+    });
+  }
+
+  function playLocalTrack(i) {
+    if (i < 0 || i >= localPlaylist.length) return;
+    localCurrentIndex = i;
+    localAudio.src = localPlaylist[i].url;
+    localAudio.play();
+    localPlayerEl.style.display = 'block';
+    localNowPlaying.textContent = localPlaylist[i].name;
+    renderLocalPlaylist();
+  }
+
+  function removeLocalTrack(i) {
+    const wasPlaying = i === localCurrentIndex;
+    URL.revokeObjectURL(localPlaylist[i].url);
+    localPlaylist.splice(i, 1);
+    if (wasPlaying) {
+      localAudio.pause();
+      localAudio.removeAttribute('src');
+      localCurrentIndex = -1;
+      localPlayerEl.style.display = 'none';
+    } else if (i < localCurrentIndex) {
+      localCurrentIndex--;
+    }
+    renderLocalPlaylist();
+  }
+
+  localAddBtn.addEventListener('click', () => localFileInput.click());
+  localFileInput.addEventListener('change', () => {
+    const files = Array.from(localFileInput.files || []);
+    files.forEach((file) => localPlaylist.push({ name: file.name, url: URL.createObjectURL(file) }));
+    localFileInput.value = '';
+    renderLocalPlaylist();
+    if (localCurrentIndex === -1 && localPlaylist.length) playLocalTrack(0);
+  });
+
+  localPlayPauseBtn.addEventListener('click', () => {
+    if (localCurrentIndex === -1) return;
+    if (localAudio.paused) localAudio.play(); else localAudio.pause();
+  });
+  localPrevBtn.addEventListener('click', () => {
+    if (!localPlaylist.length) return;
+    playLocalTrack((localCurrentIndex - 1 + localPlaylist.length) % localPlaylist.length);
+  });
+  localNextBtn.addEventListener('click', () => {
+    if (!localPlaylist.length) return;
+    playLocalTrack((localCurrentIndex + 1) % localPlaylist.length);
+  });
+  localAudio.addEventListener('ended', () => {
+    if (localPlaylist.length) playLocalTrack((localCurrentIndex + 1) % localPlaylist.length);
+  });
+  localAudio.addEventListener('play', () => { localPlayPauseBtn.textContent = '⏸'; });
+  localAudio.addEventListener('pause', () => { localPlayPauseBtn.textContent = '▶'; });
+  localAudio.addEventListener('timeupdate', () => {
+    if (localAudio.duration) localSeek.value = String((localAudio.currentTime / localAudio.duration) * 100);
+    localTimeEl.textContent = `${formatTime(localAudio.currentTime)} / ${formatTime(localAudio.duration)}`;
+  });
+  localSeek.addEventListener('input', () => {
+    if (localAudio.duration) localAudio.currentTime = (parseFloat(localSeek.value) / 100) * localAudio.duration;
+  });
+  localVolume.addEventListener('input', () => { localAudio.volume = parseFloat(localVolume.value) / 100; });
 
   // ---- Browser tab (plain iframe — only loads sites that allow embedding) --
   const browserUrlInput = panel.querySelector('#gpa-browser-url');
