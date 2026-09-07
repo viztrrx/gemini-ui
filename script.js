@@ -91,6 +91,8 @@
   const SPEED_KEY = 'gpa_type_speed';
   const FONT_KEY = 'gpa_response_font';
   const ICON_KEY = 'gpa_mini_icon';
+  const ICON_LOOK_KEY = 'gpa_mini_look';
+  const ICON_COLOR_MODE_KEY = 'gpa_mini_color_mode';
   const PANEL_SIZE_KEY = 'gpa_panel_size';
   const PANEL_SIZES = {
     compact: { w: 300, h: 400 },
@@ -325,6 +327,16 @@
           <button class="gpa-btn icon-btn" data-icon="chat">Chat</button>
           <button class="gpa-btn icon-btn" data-icon="letter">Letter (G/O)</button>
         </div>
+        <div class="gpa-sub" style="margin:14px 0 6px;">Minimized button look</div>
+        <div class="gpa-row">
+          <button class="gpa-btn look-btn primary" data-look="futuristic">Futuristic</button>
+          <button class="gpa-btn look-btn" data-look="minimal">Minimal</button>
+        </div>
+        <div class="gpa-sub" style="margin:14px 0 6px;">Minimized button color</div>
+        <div class="gpa-row">
+          <button class="gpa-btn colormode-btn primary" data-colormode="theme">Theme accent</button>
+          <button class="gpa-btn colormode-btn" data-colormode="page">Match this page</button>
+        </div>
         <div class="gpa-sub" style="margin:14px 0 6px;">Interface size</div>
         <div class="gpa-row">
           <button class="gpa-btn size-btn" data-size="compact">Compact</button>
@@ -384,6 +396,41 @@
     }
   }
   renderMiniIcon();
+
+  // "Futuristic" (default) keeps the spinning rings/pulse; "Minimal" is a
+  // calmer, low-key badge for anyone who'd rather it not stand out visually.
+  function applyMiniLook() {
+    const look = localStorage.getItem(ICON_LOOK_KEY) || 'futuristic';
+    minimized.classList.toggle('gpa-mini-minimal', look === 'minimal');
+  }
+  applyMiniLook();
+
+  // Samples the actual page's own colors so the minimized badge can blend
+  // with whatever site it's sitting on, instead of always using the panel's
+  // theme accent color.
+  function getPageAccentColor() {
+    const linkEl = document.querySelector('a');
+    const linkColor = linkEl && parseRgbString(getComputedStyle(linkEl).color);
+    if (linkColor && (linkColor.r + linkColor.g + linkColor.b) > 0) return linkColor;
+    const bodyBg = parseRgbString(getComputedStyle(document.body).backgroundColor);
+    const bg = (bodyBg && bodyBg.a > 0.05) ? bodyBg : { r: 255, g: 255, b: 255, a: 1 };
+    const lum = relativeLuminance(bg);
+    return lum < 0.5 ? { r: 225, g: 228, b: 235 } : { r: 55, g: 60, b: 72 };
+  }
+
+  function applyMiniColorMode() {
+    const mode = localStorage.getItem(ICON_COLOR_MODE_KEY) || 'theme';
+    if (mode === 'page') {
+      const c = getPageAccentColor();
+      const core = `rgb(${c.r}, ${c.g}, ${c.b})`;
+      minimized.style.background = `radial-gradient(circle at 35% 30%, ${core}, ${THEMES[theme].bg} 78%)`;
+      minimized.style.boxShadow = `0 0 10px 1px rgba(${c.r}, ${c.g}, ${c.b}, 0.45), 0 6px 16px rgba(0,0,0,0.35)`;
+    } else {
+      minimized.style.background = '';
+      minimized.style.boxShadow = '';
+    }
+  }
+  applyMiniColorMode();
 
   function applyTheme(name) {
     theme = THEMES[name] ? name : 'matte';
@@ -638,8 +685,8 @@
       }
       .provider-btn { flex: 1; }
       .provider-btn.primary { background: ${t.accent}; color: #fff; border-color: ${t.accent}; }
-      .speed-btn, .font-btn, .particle-btn, .icon-btn, .size-btn { flex: 1; padding: 6px 4px; font-size: 11px; }
-      .speed-btn.primary, .font-btn.primary, .particle-btn.primary, .icon-btn.primary, .size-btn.primary { background: ${t.accent}; color: #fff; border-color: ${t.accent}; }
+      .speed-btn, .font-btn, .particle-btn, .icon-btn, .size-btn, .look-btn, .colormode-btn { flex: 1; padding: 6px 4px; font-size: 11px; }
+      .speed-btn.primary, .font-btn.primary, .particle-btn.primary, .icon-btn.primary, .size-btn.primary, .look-btn.primary, .colormode-btn.primary { background: ${t.accent}; color: #fff; border-color: ${t.accent}; }
       .gpa-range {
         width: 100%; -webkit-appearance: none; appearance: none;
         height: 4px; border-radius: 2px; background: ${t.border}; outline: none;
@@ -685,6 +732,16 @@
       }
       @keyframes gpa-orb-spin { to { transform: rotate(360deg); } }
       @keyframes gpa-orb-spin-rev { to { transform: rotate(-360deg); } }
+      .gpa-mini.gpa-mini-minimal {
+        animation: gpa-mini-soft-pulse 3.6s ease-in-out infinite;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+      }
+      .gpa-mini.gpa-mini-minimal::before,
+      .gpa-mini.gpa-mini-minimal::after { display: none; }
+      @keyframes gpa-mini-soft-pulse {
+        0%, 100% { opacity: 0.92; }
+        50% { opacity: 1; }
+      }
       #gpa-root-host.gpa-settling {
         transition: left 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
       }
@@ -723,6 +780,7 @@
       }
       .gpa-body::-webkit-scrollbar-corner { background: transparent; }
     `;
+    if (typeof applyMiniColorMode === 'function') applyMiniColorMode();
   }
   applyTheme(theme);
 
@@ -900,6 +958,34 @@
       localStorage.setItem(ICON_KEY, btn.dataset.icon);
       setIconUI(btn.dataset.icon);
       renderMiniIcon();
+    });
+  });
+
+  // ---- Minimized-button look (Futuristic / Minimal) ----------------------
+  const lookBtns = panel.querySelectorAll('.look-btn');
+  function setLookUI(l) {
+    lookBtns.forEach((b) => b.classList.toggle('primary', b.dataset.look === l));
+  }
+  setLookUI(localStorage.getItem(ICON_LOOK_KEY) || 'futuristic');
+  lookBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      localStorage.setItem(ICON_LOOK_KEY, btn.dataset.look);
+      setLookUI(btn.dataset.look);
+      applyMiniLook();
+    });
+  });
+
+  // ---- Minimized-button color (Theme accent / Match this page) ----------
+  const colorModeBtns = panel.querySelectorAll('.colormode-btn');
+  function setColorModeUI(m) {
+    colorModeBtns.forEach((b) => b.classList.toggle('primary', b.dataset.colormode === m));
+  }
+  setColorModeUI(localStorage.getItem(ICON_COLOR_MODE_KEY) || 'theme');
+  colorModeBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      localStorage.setItem(ICON_COLOR_MODE_KEY, btn.dataset.colormode);
+      setColorModeUI(btn.dataset.colormode);
+      applyMiniColorMode();
     });
   });
 
