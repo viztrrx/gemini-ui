@@ -127,10 +127,8 @@
   //     { name: 'Another Track.mp3', url: 'https://raw.githubusercontent.com/USER/REPO/main/music/another.mp3' },
   //   ];
   const PRELOADED_TRACKS = [
-  { name: 'me gusta todo de ti.mp3', url: 'https://raw.githubusercontent.com/viztrrx/gemini-ui/music/me-gusta-todo-de-ti.mp3' },
-  { name: 'tal vez.mp3', url: 'https://raw.githubusercontent.com/viztrrx/gemini-ui/main/music/tal-vez.mp3' },
-];
-
+    { name: 'Me Gusta Todo De Ti', url: 'https://raw.githubusercontent.com/viztrrx/gemini-ui/refs/heads/music/me-gusta-todo-de-ti.mp3' }
+  ];
 
   // Prevent duplicate instances — toggle instead of re-injecting
   const existing = document.getElementById('gpa-root-host');
