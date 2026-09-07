@@ -189,6 +189,11 @@
           <button id="gpa-scan-btn" class="gpa-btn">Scan page text</button>
           <button id="gpa-capture-btn" class="gpa-btn">Capture screen</button>
         </div>
+        <div class="gpa-row">
+          <button id="gpa-upload-btn" class="gpa-btn">Upload image</button>
+          <span class="gpa-sub">or paste (Ctrl+V) a screenshot anywhere in this panel</span>
+          <input type="file" id="gpa-image-upload" accept="image/*" style="display:none" />
+        </div>
         <div class="gpa-row" id="gpa-status-row" style="display:none;">
           <img id="gpa-thumb" alt="captured screen" />
           <span id="gpa-scan-status" class="gpa-sub"></span>
@@ -490,6 +495,13 @@
         from { opacity: 0; transform: scale(0.82) translateY(5px); }
         to { opacity: 1; transform: scale(1) translateY(0); }
       }
+      .gpa-grid-conf {
+        font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 8px; margin-top: 1px;
+      }
+      .gpa-confidence-line { margin-top: 8px; }
+      .gpa-conf-high { background: rgba(34, 197, 94, 0.18); color: #22c55e; }
+      .gpa-conf-mid { background: rgba(234, 179, 8, 0.18); color: #eab308; }
+      .gpa-conf-low { background: rgba(239, 68, 68, 0.18); color: #ef4444; }
       .gpa-chat {
         flex: 1; min-height: 80px; overflow-y: auto; margin-bottom: 8px;
         display: flex; flex-direction: column; gap: 6px;
@@ -1053,6 +1065,24 @@
       : callGemini(userText, systemText, imageDataUrls);
   }
 
+  // Real second-pass check for quiz/answer-grid results: sends the draft
+  // answers back to the AI alongside the original context and asks it to
+  // re-verify each one, fixing anything wrong and returning a final,
+  // calibrated confidence per item. Falls back to the draft if the
+  // verification call fails or comes back unparsable, so a bad second
+  // pass never wipes out a good first one.
+  async function verifyGridAnswers(contextText, draftGrid, imageDataUrls) {
+    const sys = 'You previously drafted answers to a set of questions. Re-check EACH answer against the original context on its own, independently — do not just assume the draft is correct. Fix anything wrong, then return a final JSON array in this exact shape and nothing else: [{"q":"1","a":"B","c":92}] — "c" is your honest confidence (0-100) that this specific final answer is correct. Do not include any text outside the JSON array.';
+    const userText = `ORIGINAL CONTEXT:\n${contextText}\n\nDRAFT ANSWERS TO VERIFY:\n${JSON.stringify(draftGrid)}`;
+    try {
+      const out = await callAI(userText, sys, imageDataUrls);
+      const verified = tryParseAnswerGrid(out);
+      return verified || draftGrid;
+    } catch (e) {
+      return draftGrid;
+    }
+  }
+
   // ---- Friendly error display ---------------------------------------------
   // Turns raw API error text (status codes, JSON bodies) into one plain
   // sentence, and renders it in a small styled box instead of a code dump.
@@ -1090,12 +1120,13 @@
   // Reveals text a few characters at a time with a blinking cursor. Speed
   // scales with length so long answers don't take forever to finish, and
   // is user-adjustable (Slow/Normal/Fast/Instant) in the Theme tab.
-  function typeText(el, fullText, scrollContainer) {
+  function typeText(el, fullText, scrollContainer, onDone) {
     const speedSetting = localStorage.getItem(SPEED_KEY) || 'normal';
     if (speedSetting === 'instant') {
       el.classList.remove('gpa-typing');
       el.textContent = fullText;
       if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      if (onDone) onDone();
       return;
     }
     const delayMs = { slow: 28, normal: 12, fast: 4 }[speedSetting] || 12;
@@ -1111,6 +1142,7 @@
       if (i >= total) {
         cursor.remove();
         el.classList.remove('gpa-typing');
+        if (onDone) onDone();
         return;
       }
       cursor.insertAdjacentText('beforebegin', fullText.slice(i, i + chunk));
@@ -1124,6 +1156,10 @@
   // ---- Structured answer grid (for "answers to questions 1-10" style asks) --
   function escapeHtml(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function confidenceClass(pct) {
+    return pct >= 85 ? 'gpa-conf-high' : pct >= 60 ? 'gpa-conf-mid' : 'gpa-conf-low';
   }
 
   function tryParseAnswerGrid(text) {
@@ -1140,13 +1176,35 @@
 
   function renderAnswerGrid(el, arr) {
     el.classList.remove('gpa-typing');
-    const cells = arr.map((it, idx) =>
-      `<div class="gpa-grid-cell" style="animation-delay:${idx * 35}ms">
+    const cells = arr.map((it, idx) => {
+      const hasConf = typeof it.c === 'number' && !isNaN(it.c);
+      const pct = hasConf ? Math.max(0, Math.min(100, Math.round(it.c))) : null;
+      const badge = pct === null ? '' : `<span class="gpa-grid-conf ${confidenceClass(pct)}">${pct}%</span>`;
+      return `<div class="gpa-grid-cell" style="animation-delay:${idx * 35}ms">
          <span class="gpa-grid-q">${escapeHtml(it.q)}</span>
          <span class="gpa-grid-a">${escapeHtml(it.a)}</span>
-       </div>`
-    ).join('');
+         ${badge}
+       </div>`;
+    }).join('');
     el.innerHTML = `<div class="gpa-answer-grid">${cells}</div>`;
+  }
+
+  // For a single free-text answer, the model appends a trailing
+  // "CONFIDENCE: NN" line — pull it out and show it as a small badge
+  // instead of leaving it as literal text in the answer.
+  function extractConfidenceLine(text) {
+    const match = text.match(/\n?\s*CONFIDENCE:\s*(\d{1,3})\s*%?\s*$/i);
+    if (!match) return { text, confidence: null };
+    const confidence = Math.max(0, Math.min(100, parseInt(match[1], 10)));
+    return { text: text.slice(0, match.index).trim(), confidence };
+  }
+
+  function appendConfidenceBadge(container, confidence) {
+    if (confidence === null || typeof confidence !== 'number' || isNaN(confidence)) return;
+    const badge = document.createElement('div');
+    badge.className = 'gpa-confidence-line';
+    badge.innerHTML = `<span class="gpa-grid-conf ${confidenceClass(confidence)}">${confidence}% confident this is correct</span>`;
+    container.appendChild(badge);
   }
 
   function extractPageText() {
@@ -1224,6 +1282,32 @@
     }
   }
 
+  // ---- Upload / paste an image (for the AI to read text from or analyze) --
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function downscaleDataUrl(dataUrl, maxWidth) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => reject(new Error('Could not read that image.'));
+      img.src = dataUrl;
+    });
+  }
+
   // ---- Scan & Analyze tab ------------------------------------------------
   let pageText = '';
   let screenshotDataUrl = '';
@@ -1269,11 +1353,16 @@
     scanOutput.innerHTML = '';
     scanOutput.textContent = 'Reading the page…';
     try {
-      const sys = 'You are analyzing a quiz, exam, or worksheet on this web page, including any dropdown menus and multiple-choice/checkbox options listed under FORM CONTROLS ON THIS PAGE. Identify every question — including multi-part questions like "2a"/"2b" — and give the single best correct answer for each, using the dropdown/multiple-choice options where relevant. Respond with ONLY a JSON array in this exact shape and nothing else: [{"q":"1","a":"B"},{"q":"2a","a":"True"}] — "q" is the question number/label as a string (use sub-labels for multi-part questions), "a" is the short correct answer. If you genuinely cannot determine an answer for an item, use "a":"Unclear". Do not include any text outside the JSON array.';
+      const sys = 'You are analyzing a quiz, exam, or worksheet on this web page, including any dropdown menus and multiple-choice/checkbox options listed under FORM CONTROLS ON THIS PAGE. Identify every question — including multi-part questions like "2a"/"2b" — and give the single best correct answer for each, using the dropdown/multiple-choice options where relevant. Respond with ONLY a JSON array in this exact shape and nothing else: [{"q":"1","a":"B","c":85}] — "q" is the question number/label as a string (use sub-labels for multi-part questions), "a" is the short correct answer, "c" is your confidence (0-100) that this specific answer is correct. If you genuinely cannot determine an answer for an item, use "a":"Unclear" and a low "c". Do not include any text outside the JSON array.';
       const out = await callAI(combinedText, sys, screenshotDataUrl ? [screenshotDataUrl] : null);
       const grid = tryParseAnswerGrid(out);
-      if (grid) renderAnswerGrid(scanOutput, grid);
-      else typeText(scanOutput, out, scanOutput);
+      if (grid) {
+        quizBtn.textContent = 'Double-checking…';
+        const verified = await verifyGridAnswers(combinedText, grid, screenshotDataUrl ? [screenshotDataUrl] : null);
+        renderAnswerGrid(scanOutput, verified);
+      } else {
+        typeText(scanOutput, out, scanOutput);
+      }
     } catch (e) {
       showError(scanOutput, e, currentProviderLabel());
     } finally {
@@ -1301,6 +1390,47 @@
     } finally {
       captureBtn.textContent = prevLabel;
       captureBtn.disabled = false;
+    }
+  });
+
+  // Upload an image file directly.
+  const imageUploadInput = panel.querySelector('#gpa-image-upload');
+  const uploadBtn = panel.querySelector('#gpa-upload-btn');
+  uploadBtn.addEventListener('click', () => imageUploadInput.click());
+  imageUploadInput.addEventListener('change', async () => {
+    const file = imageUploadInput.files && imageUploadInput.files[0];
+    imageUploadInput.value = '';
+    if (!file) return;
+    try {
+      const raw = await blobToDataUrl(file);
+      screenshotDataUrl = await downscaleDataUrl(raw, MAX_IMAGE_WIDTH);
+      scanOutput.textContent = '';
+      refreshStatus();
+    } catch (e) {
+      showError(scanOutput, e, currentProviderLabel());
+    }
+  });
+
+  // Paste an image (Ctrl+V) anywhere in the panel — e.g. a screenshot
+  // copied from another app or the OS's own screenshot tool.
+  root.addEventListener('paste', async (e) => {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type && item.type.startsWith('image/')) {
+        const blob = item.getAsFile();
+        if (!blob) continue;
+        e.preventDefault();
+        try {
+          const raw = await blobToDataUrl(blob);
+          screenshotDataUrl = await downscaleDataUrl(raw, MAX_IMAGE_WIDTH);
+          scanOutput.textContent = '';
+          refreshStatus();
+        } catch (err) {
+          showError(scanOutput, err, currentProviderLabel());
+        }
+        break;
+      }
     }
   });
 
@@ -1341,12 +1471,18 @@
     if (!pageText && !screenshotDataUrl) { scanOutput.textContent = 'Scan the page or capture the screen first.'; return; }
     scanOutput.textContent = 'Thinking…';
     try {
-      const sys = 'Answer the question using ONLY the provided context (page text and/or screenshot). If — and only if — the question is asking for answers to multiple numbered items (like a quiz, worksheet, or multiple-choice list), respond with ONLY a JSON array and nothing else, in exactly this shape: [{"q":"1","a":"B"},{"q":"2","a":"D"}] — "q" is the item number/label as a string, "a" is the short answer, one object per item, no extra commentary. For any other kind of question, answer in brief plain sentences with no markdown formatting (no asterisks, headers, or lists) since this is shown as plain text. If the answer is not in the content, say so in one short sentence.';
+      const sys = 'Answer the question using ONLY the provided context (page text and/or screenshot). Before finalizing, double-check your answer against the context. If — and only if — the question is asking for answers to multiple numbered items (like a quiz, worksheet, or multiple-choice list), respond with ONLY a JSON array and nothing else, in exactly this shape: [{"q":"1","a":"B","c":90}] — "q" is the item number/label as a string, "a" is the short answer, "c" is your confidence (0-100) that this specific answer is correct, one object per item, no extra commentary. For any other kind of question, answer in brief plain sentences with no markdown formatting (no asterisks, headers, or lists), then on its own final line write exactly "CONFIDENCE: NN" where NN is your confidence percentage (0-100) that the answer is correct. If the answer is not in the content, say so in one short sentence and use a low confidence number.';
       const textPart = `${pageText ? `PAGE TEXT:\n${pageText}\n\n` : ''}QUESTION:\n${q}`;
-      const out = await callAI(textPart, sys, screenshotDataUrl ? [screenshotDataUrl] : null);
+      const images = screenshotDataUrl ? [screenshotDataUrl] : null;
+      const out = await callAI(textPart, sys, images);
       const grid = tryParseAnswerGrid(out);
-      if (grid) renderAnswerGrid(scanOutput, grid);
-      else typeText(scanOutput, out, scanOutput);
+      if (grid) {
+        const verified = await verifyGridAnswers(textPart, grid, images);
+        renderAnswerGrid(scanOutput, verified);
+      } else {
+        const { text: cleanText, confidence } = extractConfidenceLine(out);
+        typeText(scanOutput, cleanText, scanOutput, () => appendConfidenceBadge(scanOutput, confidence));
+      }
     } catch (e) {
       showError(scanOutput, e, currentProviderLabel());
     }
