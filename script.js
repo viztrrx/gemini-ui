@@ -686,6 +686,7 @@
 
   let isMin = false;
   function setMinimized(v) {
+    const prevRect = host.getBoundingClientRect(); // capture BEFORE resizing anything below
     isMin = v;
     body.style.display = v ? 'none' : 'flex';
     headerEl.style.display = v ? 'none' : 'flex';
@@ -709,6 +710,18 @@
       host.addEventListener('transitionend', () => host.classList.remove('gpa-settling'), { once: true });
     } else {
       host.classList.remove('gpa-settling');
+      // Expand from the SAME corner the mini dot was resting at (so it
+      // grows up-and-left, away from the edge it was sitting against)
+      // instead of keeping the old top-left pinned and letting the
+      // now-much-bigger panel spill off the right/bottom of the screen.
+      // Clamped afterward as a safety net for any resting position.
+      const { w: newW, h: newH } = PANEL_SIZES[panelSizeKey] || PANEL_SIZES.normal;
+      let newLeft = prevRect.right - newW;
+      let newTop = prevRect.bottom - newH;
+      newLeft = Math.max(0, Math.min(window.innerWidth - newW, newLeft));
+      newTop = Math.max(0, Math.min(window.innerHeight - newH, newTop));
+      host.style.left = newLeft + 'px';
+      host.style.top = newTop + 'px';
     }
 
     const activeParticleStyle = localStorage.getItem(PARTICLE_KEY) || 'off';
