@@ -11,16 +11,21 @@
  *    returns one answer per question — including multi-part ones like
  *    "2a"/"2b" — as a small animated answer grid.
  *  - A general "Ask AI" chat section, independent of page content.
- *  - A "Music" section with two ways to play something:
+ *  - A "Music" section with a few ways to play something:
  *      1) Type a song name/description ("mi historia entre tus dedos by
  *         eslabon armado") and it searches YouTube's official Data API
  *         for the closest match and plays it via YouTube's own embed
  *         player. Needs a free YouTube Data API v3 key (see below).
  *      2) Paste a SoundCloud link directly, played via SoundCloud's own
  *         official embeddable player.
- *    Either way it's an official embed API, not a scrape/proxy, and
- *    playback keeps running in the background while you switch tabs
- *    (the iframe stays in the DOM, just visually hidden).
+ *      3) A local/preloaded music library: fill in PRELOADED_TRACKS below
+ *         with raw.githubusercontent.com URLs to audio files in your repo
+ *         (must be public) and they'll show up in the playlist on load —
+ *         or just click "Add audio files" to pick files off your own
+ *         device for the session. Playback is a plain <audio> element, no
+ *         embed/iframe involved.
+ *    Playback keeps running in the background while you switch tabs (the
+ *    player element stays in the DOM, just visually hidden).
  *  - A "Browser" section: a plain iframe with a URL bar. It only loads
  *    sites that allow being embedded (most publisher sites, wikis,
  *    many docs sites). Sites that set X-Frame-Options / CSP
@@ -110,6 +115,18 @@
   const MAX_PAGE_CHARS = 18000;
   const MAX_IMAGE_WIDTH = 1280;
   const API_KEY_DEFAULT = ''; // paste your own key here if hosting a private copy
+
+  // Preloaded music library — pulled straight from your GitHub repo. Add
+  // audio files to your repo, then list them here as raw.githubusercontent.com
+  // URLs (open the file on GitHub, click "Raw", copy that URL). These stream
+  // directly via a normal <audio> element — no fetch/download step needed —
+  // so this only works if the repo (or at least this folder) is PUBLIC.
+  // Example:
+  //   const PRELOADED_TRACKS = [
+  //     { name: 'My Song.mp3', url: 'https://raw.githubusercontent.com/USER/REPO/main/music/my-song.mp3' },
+  //     { name: 'Another Track.mp3', url: 'https://raw.githubusercontent.com/USER/REPO/main/music/another.mp3' },
+  //   ];
+  const PRELOADED_TRACKS = [];
 
   // Prevent duplicate instances — toggle instead of re-injecting
   const existing = document.getElementById('gpa-root-host');
@@ -276,7 +293,7 @@
         </div>
         <div id="gpa-sc-wrap" class="gpa-sc-wrap"></div>
 
-        <div class="gpa-sub" style="margin:14px 0 6px;">📁 Local files — plays fully offline, nothing leaves your device</div>
+        <div class="gpa-sub" style="margin:14px 0 6px;">📁 Music library — preloaded from GitHub, plus any files you add here</div>
         <div class="gpa-row">
           <button id="gpa-local-add-btn" class="gpa-btn">Add audio files</button>
           <input type="file" id="gpa-local-file-input" accept="audio/*" multiple style="display:none" />
@@ -2238,10 +2255,11 @@
   const localNextBtn = panel.querySelector('#gpa-local-next');
   const localVolume = panel.querySelector('#gpa-local-volume');
 
-  let localPlaylist = [];
+  let localPlaylist = PRELOADED_TRACKS.map((t) => ({ name: t.name, url: t.url }));
   let localCurrentIndex = -1;
   const localAudio = new Audio();
   localAudio.volume = 0.8;
+  renderLocalPlaylist(); // show the preloaded list immediately; nothing auto-plays (browsers block that without a click anyway)
 
   function formatTime(sec) {
     if (!isFinite(sec) || sec < 0) sec = 0;
