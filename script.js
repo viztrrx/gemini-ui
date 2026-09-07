@@ -216,6 +216,7 @@
           <button class="gpa-dropdown-item" data-tab="ask">Ask AI</button>
           <button class="gpa-dropdown-item" data-tab="music">Music</button>
           <button class="gpa-dropdown-item" data-tab="browser">Browser</button>
+          <button class="gpa-dropdown-item" data-tab="games">Games</button>
           <button class="gpa-dropdown-item" data-tab="theme">Settings</button>
         </div>
       </div>
@@ -283,6 +284,20 @@
         </div>
         <div class="gpa-sub" style="margin-bottom:8px;">Sites that block embedding (banks, most social apps, soundcloud.com itself) won't load here — that's a security setting on their end which this doesn't try to bypass. Use the Music tab for actual SoundCloud playback.</div>
         <iframe id="gpa-browser-frame" class="gpa-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>
+      </div>
+
+      <div class="gpa-pane" data-pane="games">
+        <div class="gpa-row" style="flex-wrap: wrap;">
+          <button class="gpa-btn game-btn primary" data-game="ttt">Tic-Tac-Toe</button>
+          <button class="gpa-btn game-btn" data-game="rps">RPS</button>
+          <button class="gpa-btn game-btn" data-game="memory">Memory</button>
+          <button class="gpa-btn game-btn" data-game="snake">Snake</button>
+          <button class="gpa-btn game-btn" data-game="2048">2048</button>
+          <button class="gpa-btn game-btn" data-game="whack">Whack-a-Mole</button>
+          <button class="gpa-btn game-btn" data-game="guess">Guess Number</button>
+          <button class="gpa-btn game-btn" data-game="hangman">Hangman</button>
+        </div>
+        <div id="gpa-game-viewport" class="gpa-game-viewport"></div>
       </div>
 
       <div class="gpa-pane" data-pane="theme">
@@ -756,6 +771,63 @@
       }
       .gpa-sc-wrap { flex: 1; overflow-y: auto; }
       .gpa-sc-frame { width: 100%; height: 166px; border: 0; border-radius: 8px; }
+      .game-btn { flex: 1 1 auto; min-width: 64px; font-size: 9.5px; }
+      .gpa-game-viewport {
+        flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px;
+        display: flex; flex-direction: column; align-items: center; gap: 8px;
+        padding: 6px 2px;
+      }
+      .gpa-game-status {
+        font-size: 12px; font-weight: 700; color: ${t.text}; text-align: center;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      }
+      .ttt-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; width: 180px; }
+      .ttt-cell {
+        aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+        font-size: 26px; font-weight: 800; color: ${t.accent}; cursor: pointer;
+        background: ${t.field}; border: 1px solid ${t.accent}44; border-radius: 6px;
+      }
+      .ttt-cell:hover { border-color: ${t.accent}; }
+      .rps-row { display: flex; gap: 10px; }
+      .rps-btn {
+        font-size: 26px; width: 52px; height: 52px; border-radius: 50%;
+        background: ${t.field}; border: 1px solid ${t.accent}55; cursor: pointer;
+      }
+      .rps-btn:hover { border-color: ${t.accent}; box-shadow: 0 0 10px ${t.accent}55; }
+      .memory-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 220px; }
+      .memory-card {
+        aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+        font-size: 20px; background: ${t.field}; border: 1px solid ${t.accent}44;
+        border-radius: 6px; cursor: pointer; user-select: none;
+      }
+      .memory-card.flipped, .memory-card.matched { background: ${t.accent}22; border-color: ${t.accent}; }
+      .memory-card.matched { opacity: 0.55; cursor: default; }
+      .game-canvas { border: 1px solid ${t.accent}55; border-radius: 6px; background: ${t.bg}; }
+      .g2048-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; width: 220px; }
+      .g2048-cell {
+        aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+        font-size: 15px; font-weight: 800; border-radius: 5px; background: ${t.field};
+        color: ${t.text};
+      }
+      .whack-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 200px; }
+      .whack-hole {
+        aspect-ratio: 1; border-radius: 50%; background: ${t.field};
+        border: 1px solid ${t.accent}44; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; font-size: 22px;
+      }
+      .whack-hole.up { background: ${t.accent}33; border-color: ${t.accent}; }
+      .hangman-letters { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; width: 230px; }
+      .hangman-letter {
+        font-size: 10px; padding: 5px 0; background: ${t.field}; border: 1px solid ${t.accent}44;
+        border-radius: 4px; cursor: pointer; text-align: center;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      }
+      .hangman-letter:disabled { opacity: 0.35; cursor: default; }
+      .hangman-word {
+        font-size: 22px; letter-spacing: 5px; font-weight: 800;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+        color: ${t.accent};
+      }
 
       /* Themed scrollbars — thumb matches the current accent color */
       .gpa-body, .gpa-output, .gpa-chat, .gpa-sc-wrap {
@@ -836,6 +908,7 @@
   function setMinimized(v) {
     const prevRect = host.getBoundingClientRect(); // capture BEFORE resizing anything below
     isMin = v;
+    if (v) stopActiveGame();
     body.style.display = v ? 'none' : 'flex';
     headerEl.style.display = v ? 'none' : 'flex';
     minimized.style.display = v ? 'flex' : 'none';
@@ -903,6 +976,7 @@
       panel.querySelector(`.gpa-pane[data-pane="${item.dataset.tab}"]`).classList.add('active');
       dropdownLabel.textContent = item.textContent;
       dropdown.classList.remove('open');
+      if (item.dataset.tab !== 'games') stopActiveGame();
     });
   });
 
@@ -2070,5 +2144,564 @@
   }
   askBtn.addEventListener('click', sendChat);
   askInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+
+  // ---- Games tab -----------------------------------------------------------
+  const gameViewport = panel.querySelector('#gpa-game-viewport');
+  const gameBtns = panel.querySelectorAll('.game-btn');
+  let activeGameCleanup = null;
+
+  function gameBestKey(id) { return `gpa_game_best_${id}`; }
+  function getBest(id) { return parseInt(localStorage.getItem(gameBestKey(id)), 10) || 0; }
+  function setBestIfHigher(id, score) {
+    const best = getBest(id);
+    if (score > best) { localStorage.setItem(gameBestKey(id), String(score)); return score; }
+    return best;
+  }
+
+  function stopActiveGame() {
+    if (activeGameCleanup) {
+      try { activeGameCleanup(); } catch (e) { /* ignore cleanup errors */ }
+      activeGameCleanup = null;
+    }
+  }
+
+  // --- Tic-Tac-Toe (vs a simple heuristic AI) ---
+  function initTTT(root) {
+    let board = Array(9).fill(null);
+    let over = false;
+    const WINS = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+    const boardEl = document.createElement('div');
+    boardEl.className = 'ttt-board';
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'gpa-btn';
+    resetBtn.textContent = 'Restart';
+    resetBtn.style.marginTop = '4px';
+
+    function checkWinner(b) {
+      for (const [a, c, d] of WINS) if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+      return b.every(Boolean) ? 'draw' : null;
+    }
+    function aiMove() {
+      const empties = board.map((v, i) => (v ? null : i)).filter((v) => v !== null);
+      for (const i of empties) { const t = [...board]; t[i] = 'O'; if (checkWinner(t) === 'O') return i; }
+      for (const i of empties) { const t = [...board]; t[i] = 'X'; if (checkWinner(t) === 'X') return i; }
+      if (board[4] === null) return 4;
+      const corners = [0, 2, 6, 8].filter((i) => board[i] === null);
+      if (corners.length) return corners[Math.floor(Math.random() * corners.length)];
+      return empties[Math.floor(Math.random() * empties.length)];
+    }
+    function render() {
+      boardEl.innerHTML = '';
+      board.forEach((v, i) => {
+        const cell = document.createElement('div');
+        cell.className = 'ttt-cell';
+        cell.textContent = v || '';
+        if (!v && !over) cell.addEventListener('click', () => play(i));
+        boardEl.appendChild(cell);
+      });
+    }
+    function play(i) {
+      if (board[i] || over) return;
+      board[i] = 'X';
+      let w = checkWinner(board);
+      if (!w) {
+        const ai = aiMove();
+        if (ai !== undefined) board[ai] = 'O';
+        w = checkWinner(board);
+      }
+      render();
+      if (w) {
+        over = true;
+        status.textContent = w === 'draw' ? "It's a draw!" : w === 'X' ? 'You win! 🎉' : 'AI wins!';
+      } else {
+        status.textContent = 'Your move (X)';
+      }
+    }
+    resetBtn.addEventListener('click', () => {
+      board = Array(9).fill(null);
+      over = false;
+      status.textContent = 'Your move (X)';
+      render();
+    });
+
+    status.textContent = 'Your move (X)';
+    root.appendChild(status);
+    root.appendChild(boardEl);
+    root.appendChild(resetBtn);
+    render();
+  }
+
+  // --- Rock Paper Scissors ---
+  function initRPS(root) {
+    const choices = { rock: '✊', paper: '✋', scissors: '✌️' };
+    let wins = 0, losses = 0, ties = 0;
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+    const scoreEl = document.createElement('div');
+    scoreEl.className = 'gpa-sub';
+    const row = document.createElement('div');
+    row.className = 'rps-row';
+
+    function updateScore() { scoreEl.textContent = `Wins: ${wins}   Losses: ${losses}   Ties: ${ties}`; }
+    function play(choice) {
+      const keys = Object.keys(choices);
+      const ai = keys[Math.floor(Math.random() * keys.length)];
+      let result;
+      if (choice === ai) { result = 'tie'; ties++; }
+      else if (
+        (choice === 'rock' && ai === 'scissors') ||
+        (choice === 'paper' && ai === 'rock') ||
+        (choice === 'scissors' && ai === 'paper')
+      ) { result = 'win'; wins++; }
+      else { result = 'lose'; losses++; }
+      status.textContent = `You: ${choices[choice]}  AI: ${choices[ai]} — ${result === 'tie' ? 'Tie!' : result === 'win' ? 'You win!' : 'AI wins!'}`;
+      updateScore();
+    }
+    Object.keys(choices).forEach((key) => {
+      const btn = document.createElement('button');
+      btn.className = 'rps-btn';
+      btn.textContent = choices[key];
+      btn.addEventListener('click', () => play(key));
+      row.appendChild(btn);
+    });
+
+    status.textContent = 'Pick one!';
+    updateScore();
+    root.appendChild(status);
+    root.appendChild(row);
+    root.appendChild(scoreEl);
+  }
+
+  // --- Memory Match ---
+  function initMemory(root) {
+    const emojis = ['🐱', '🐶', '🦊', '🐼', '🐸', '🦁'];
+    let cards = [...emojis, ...emojis].sort(() => Math.random() - 0.5);
+    let flipped = [];
+    let matched = new Set();
+    let moves = 0;
+    let lock = false;
+
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+    const grid = document.createElement('div');
+    grid.className = 'memory-grid';
+
+    function render() {
+      grid.innerHTML = '';
+      cards.forEach((emoji, i) => {
+        const cell = document.createElement('div');
+        cell.className = 'memory-card' + (matched.has(i) ? ' matched' : flipped.includes(i) ? ' flipped' : '');
+        cell.textContent = matched.has(i) || flipped.includes(i) ? emoji : '❔';
+        if (!matched.has(i) && !flipped.includes(i) && !lock) cell.addEventListener('click', () => flip(i));
+        grid.appendChild(cell);
+      });
+    }
+    function flip(i) {
+      if (flipped.length === 2 || flipped.includes(i)) return;
+      flipped.push(i);
+      render();
+      if (flipped.length === 2) {
+        moves++;
+        lock = true;
+        const [a, b] = flipped;
+        if (cards[a] === cards[b]) {
+          matched.add(a); matched.add(b);
+          flipped = [];
+          lock = false;
+          status.textContent = matched.size === cards.length ? `You win! Moves: ${moves}` : `Moves: ${moves}`;
+          render();
+        } else {
+          setTimeout(() => { flipped = []; lock = false; status.textContent = `Moves: ${moves}`; render(); }, 700);
+        }
+      }
+    }
+
+    status.textContent = 'Find the pairs!';
+    root.appendChild(status);
+    root.appendChild(grid);
+    render();
+  }
+
+  // --- Snake (canvas) ---
+  function initSnake(root) {
+    const size = 13, cell = 16;
+    const canvas = document.createElement('canvas');
+    canvas.className = 'game-canvas';
+    canvas.width = size * cell;
+    canvas.height = size * cell;
+    const ctx = canvas.getContext('2d');
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+
+    let snake, dir, nextDir, food, score, over, timer;
+
+    function placeFood() {
+      do { food = { x: Math.floor(Math.random() * size), y: Math.floor(Math.random() * size) }; }
+      while (snake.some((s) => s.x === food.x && s.y === food.y));
+    }
+    function reset() {
+      snake = [{ x: 6, y: 6 }, { x: 5, y: 6 }, { x: 4, y: 6 }];
+      dir = { x: 1, y: 0 }; nextDir = { x: 1, y: 0 };
+      placeFood();
+      score = 0; over = false;
+      status.textContent = `Score: 0   Best: ${getBest('snake')}`;
+    }
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#ff5252';
+      ctx.fillRect(food.x * cell, food.y * cell, cell - 2, cell - 2);
+      snake.forEach((s, i) => {
+        ctx.fillStyle = i === 0 ? '#ffffff' : THEMES[theme].accent;
+        ctx.fillRect(s.x * cell, s.y * cell, cell - 2, cell - 2);
+      });
+    }
+    function tick() {
+      if (over) return;
+      dir = nextDir;
+      const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+      if (head.x < 0 || head.x >= size || head.y < 0 || head.y >= size || snake.some((s) => s.x === head.x && s.y === head.y)) {
+        over = true;
+        const best = setBestIfHigher('snake', score);
+        status.textContent = `Game over! Score: ${score}   Best: ${best}`;
+        return;
+      }
+      snake.unshift(head);
+      if (head.x === food.x && head.y === food.y) {
+        score++;
+        placeFood();
+        status.textContent = `Score: ${score}   Best: ${getBest('snake')}`;
+      } else {
+        snake.pop();
+      }
+      draw();
+    }
+    function onKey(e) {
+      const map = {
+        ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 }, ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 },
+        w: { x: 0, y: -1 }, s: { x: 0, y: 1 }, a: { x: -1, y: 0 }, d: { x: 1, y: 0 }
+      };
+      const nd = map[e.key];
+      if (!nd) return;
+      e.preventDefault();
+      if (nd.x === -dir.x && nd.y === -dir.y) return;
+      nextDir = nd;
+    }
+
+    window.addEventListener('keydown', onKey);
+    reset();
+    draw();
+    timer = setInterval(tick, 140);
+
+    const hint = document.createElement('div');
+    hint.className = 'gpa-sub';
+    hint.textContent = 'Arrow keys or WASD to steer.';
+    root.appendChild(status);
+    root.appendChild(canvas);
+    root.appendChild(hint);
+
+    return () => { clearInterval(timer); window.removeEventListener('keydown', onKey); };
+  }
+
+  // --- 2048 ---
+  function init2048(root) {
+    const N = 4;
+    let grid, score, over;
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+    const gridEl = document.createElement('div');
+    gridEl.className = 'g2048-grid';
+
+    function emptyGrid() { return Array.from({ length: N }, () => Array(N).fill(0)); }
+    function addTile() {
+      const empties = [];
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (!grid[r][c]) empties.push([r, c]);
+      if (!empties.length) return;
+      const [r, c] = empties[Math.floor(Math.random() * empties.length)];
+      grid[r][c] = Math.random() < 0.9 ? 2 : 4;
+    }
+    function tileColor(v) {
+      const colors = { 2: '#eee4da', 4: '#ede0c8', 8: '#f2b179', 16: '#f59563', 32: '#f67c5f', 64: '#f65e3b', 128: '#edcf72', 256: '#edcc61', 512: '#edc850', 1024: '#edc53f', 2048: '#edc22e' };
+      return colors[v] || '#3c3a32';
+    }
+    function render() {
+      gridEl.innerHTML = '';
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'g2048-cell';
+        const v = grid[r][c];
+        if (v) { cell.textContent = v; cell.style.background = tileColor(v); cell.style.color = v <= 4 ? '#5c5347' : '#fff'; }
+        gridEl.appendChild(cell);
+      }
+    }
+    function slideRow(row) {
+      const nums = row.filter((v) => v);
+      const merged = [];
+      for (let i = 0; i < nums.length; i++) {
+        if (nums[i] === nums[i + 1]) { merged.push(nums[i] * 2); score += nums[i] * 2; i++; }
+        else merged.push(nums[i]);
+      }
+      while (merged.length < N) merged.push(0);
+      return merged;
+    }
+    function transpose(g) {
+      const res = emptyGrid();
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) res[c][r] = g[r][c];
+      return res;
+    }
+    function reverseRows(g) { return g.map((row) => [...row].reverse()); }
+    function isGameOver() {
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+        if (!grid[r][c]) return false;
+        if (c < N - 1 && grid[r][c] === grid[r][c + 1]) return false;
+        if (r < N - 1 && grid[r][c] === grid[r + 1][c]) return false;
+      }
+      return true;
+    }
+    function move(dir) {
+      if (over) return;
+      const g = grid.map((row) => [...row]);
+      let transformed = g;
+      if (dir === 'up' || dir === 'down') transformed = transpose(transformed);
+      if (dir === 'right' || dir === 'down') transformed = reverseRows(transformed);
+      let result = transformed.map(slideRow);
+      if (dir === 'right' || dir === 'down') result = reverseRows(result);
+      if (dir === 'up' || dir === 'down') result = transpose(result);
+
+      const moved = JSON.stringify(result) !== JSON.stringify(g);
+      if (moved) {
+        grid = result;
+        addTile();
+        render();
+        status.textContent = `Score: ${score}   Best: ${getBest('2048')}`;
+        if (isGameOver()) {
+          over = true;
+          const best = setBestIfHigher('2048', score);
+          status.textContent = `Game over! Score: ${score}   Best: ${best}`;
+        }
+      }
+    }
+    function reset() {
+      grid = emptyGrid(); score = 0; over = false;
+      addTile(); addTile();
+      status.textContent = `Score: 0   Best: ${getBest('2048')}`;
+      render();
+    }
+    function onKey(e) {
+      const map = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', a: 'left', d: 'right', w: 'up', s: 'down' };
+      if (map[e.key]) { e.preventDefault(); move(map[e.key]); }
+    }
+
+    window.addEventListener('keydown', onKey);
+    reset();
+
+    const hint = document.createElement('div');
+    hint.className = 'gpa-sub';
+    hint.textContent = 'Arrow keys or WASD to slide tiles.';
+    root.appendChild(status);
+    root.appendChild(gridEl);
+    root.appendChild(hint);
+
+    return () => window.removeEventListener('keydown', onKey);
+  }
+
+  // --- Whack-a-Mole ---
+  function initWhack(root) {
+    const size = 9;
+    let score = 0, timeLeft = 20, activeHole = -1, moleTimer = null, countdown = null, over = false;
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+    const grid = document.createElement('div');
+    grid.className = 'whack-grid';
+    const holes = [];
+
+    function render() {
+      holes.forEach((h, i) => {
+        h.classList.toggle('up', i === activeHole);
+        h.textContent = i === activeHole ? '🐹' : '';
+      });
+    }
+    for (let i = 0; i < size; i++) {
+      const hole = document.createElement('div');
+      hole.className = 'whack-hole';
+      hole.addEventListener('click', () => {
+        if (over || i !== activeHole) return;
+        score++;
+        activeHole = -1;
+        render();
+        status.textContent = `Score: ${score}   Time: ${timeLeft}s`;
+      });
+      holes.push(hole);
+      grid.appendChild(hole);
+    }
+    function popMole() {
+      if (over) return;
+      activeHole = Math.floor(Math.random() * size);
+      render();
+      moleTimer = setTimeout(() => { activeHole = -1; render(); if (!over) popMole(); }, 550 + Math.random() * 450);
+    }
+    function tickCountdown() {
+      timeLeft--;
+      if (timeLeft <= 0) {
+        over = true;
+        clearTimeout(moleTimer);
+        clearInterval(countdown);
+        activeHole = -1; render();
+        const best = setBestIfHigher('whack', score);
+        status.textContent = `Time's up! Score: ${score}   Best: ${best}`;
+      } else {
+        status.textContent = `Score: ${score}   Time: ${timeLeft}s`;
+      }
+    }
+
+    status.textContent = `Score: 0   Time: ${timeLeft}s   Best: ${getBest('whack')}`;
+    root.appendChild(status);
+    root.appendChild(grid);
+    popMole();
+    countdown = setInterval(tickCountdown, 1000);
+
+    return () => { clearTimeout(moleTimer); clearInterval(countdown); };
+  }
+
+  // --- Guess the Number ---
+  function initGuess(root) {
+    let target = Math.floor(Math.random() * 100) + 1;
+    let tries = 0, over = false;
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+    const hint = document.createElement('div');
+    hint.className = 'gpa-sub';
+    hint.textContent = "I'm thinking of a number between 1 and 100.";
+    const row = document.createElement('div');
+    row.className = 'gpa-row';
+    const input = document.createElement('input');
+    input.className = 'gpa-input';
+    input.type = 'number'; input.min = '1'; input.max = '100';
+    input.placeholder = 'Your guess…';
+    const btn = document.createElement('button');
+    btn.className = 'gpa-btn primary';
+    btn.textContent = 'Guess';
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'gpa-btn';
+    resetBtn.textContent = 'New number';
+    resetBtn.style.marginTop = '6px';
+
+    function guess() {
+      if (over) return;
+      const val = parseInt(input.value, 10);
+      if (isNaN(val)) return;
+      tries++;
+      if (val === target) {
+        over = true;
+        const key = 'gpa_game_best_guess_tries';
+        const prevBest = parseInt(localStorage.getItem(key), 10);
+        const newBest = isNaN(prevBest) || tries < prevBest ? tries : prevBest;
+        localStorage.setItem(key, String(newBest));
+        status.textContent = `🎉 Correct! It was ${target}. Tries: ${tries}   Best: ${newBest}`;
+      } else if (val < target) {
+        status.textContent = `Higher than ${val}. Try again. (Tries: ${tries})`;
+      } else {
+        status.textContent = `Lower than ${val}. Try again. (Tries: ${tries})`;
+      }
+      input.value = '';
+      input.focus();
+    }
+    btn.addEventListener('click', guess);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') guess(); });
+    resetBtn.addEventListener('click', () => {
+      target = Math.floor(Math.random() * 100) + 1;
+      tries = 0; over = false;
+      status.textContent = 'New number picked — guess away!';
+    });
+
+    row.appendChild(input);
+    row.appendChild(btn);
+    status.textContent = 'Make your first guess!';
+    root.appendChild(hint);
+    root.appendChild(status);
+    root.appendChild(row);
+    root.appendChild(resetBtn);
+  }
+
+  // --- Hangman ---
+  function initHangman(root) {
+    const words = ['JAVASCRIPT', 'PYTHON', 'KEYBOARD', 'BROWSER', 'ROBOT', 'PUZZLE', 'GALAXY', 'WIZARD', 'PENGUIN', 'CANDLE'];
+    const maxWrong = 6;
+    let word, guessedLetters, wrongCount, over;
+
+    const status = document.createElement('div');
+    status.className = 'gpa-game-status';
+    const wordEl = document.createElement('div');
+    wordEl.className = 'hangman-word';
+    const lettersEl = document.createElement('div');
+    lettersEl.className = 'hangman-letters';
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'gpa-btn';
+    resetBtn.textContent = 'New word';
+    resetBtn.style.marginTop = '6px';
+
+    function renderWord() {
+      wordEl.textContent = word.split('').map((l) => (guessedLetters.has(l) ? l : '_')).join(' ');
+    }
+    function renderLetters() {
+      lettersEl.innerHTML = '';
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach((l) => {
+        const b = document.createElement('button');
+        b.className = 'hangman-letter';
+        b.textContent = l;
+        b.disabled = guessedLetters.has(l) || over;
+        b.addEventListener('click', () => guessLetter(l));
+        lettersEl.appendChild(b);
+      });
+    }
+    function guessLetter(l) {
+      if (over || guessedLetters.has(l)) return;
+      guessedLetters.add(l);
+      if (!word.includes(l)) wrongCount++;
+      renderWord();
+      if (word.split('').every((ch) => guessedLetters.has(ch))) {
+        over = true;
+        status.textContent = '🎉 You saved the day! You win!';
+      } else if (wrongCount >= maxWrong) {
+        over = true;
+        status.textContent = `💀 Out of guesses! The word was ${word}.`;
+      } else {
+        status.textContent = `Guesses left: ${maxWrong - wrongCount}`;
+      }
+      renderLetters();
+    }
+    function reset() {
+      word = words[Math.floor(Math.random() * words.length)];
+      guessedLetters = new Set();
+      wrongCount = 0; over = false;
+      status.textContent = `Guesses left: ${maxWrong}`;
+      renderWord();
+      renderLetters();
+    }
+
+    resetBtn.addEventListener('click', reset);
+    reset();
+    root.appendChild(status);
+    root.appendChild(wordEl);
+    root.appendChild(lettersEl);
+    root.appendChild(resetBtn);
+  }
+
+  const GAME_LOADERS = {
+    ttt: initTTT, rps: initRPS, memory: initMemory, snake: initSnake,
+    '2048': init2048, whack: initWhack, guess: initGuess, hangman: initHangman
+  };
+
+  function loadGame(id) {
+    stopActiveGame();
+    gameViewport.innerHTML = '';
+    gameBtns.forEach((b) => b.classList.toggle('primary', b.dataset.game === id));
+    const loader = GAME_LOADERS[id];
+    if (loader) activeGameCleanup = loader(gameViewport) || null;
+  }
+  gameBtns.forEach((btn) => btn.addEventListener('click', () => loadGame(btn.dataset.game)));
+  loadGame('ttt');
 
 })();
