@@ -91,10 +91,17 @@
   const SPEED_KEY = 'gpa_type_speed';
   const FONT_KEY = 'gpa_response_font';
   const ICON_KEY = 'gpa_mini_icon';
+  const PANEL_SIZE_KEY = 'gpa_panel_size';
+  const PANEL_SIZES = {
+    compact: { w: 300, h: 400 },
+    normal: { w: 360, h: 480 },
+    large: { w: 420, h: 560 },
+    xl: { w: 480, h: 640 }
+  };
   const PARTICLE_KEY = 'gpa_particle_style';
   const PARTICLE_SIZE_KEY = 'gpa_particle_margin';
-  const PARTICLE_PANEL_W = 360;
-  const PARTICLE_PANEL_H = 480;
+  let PARTICLE_PANEL_W = PANEL_SIZES.normal.w;
+  let PARTICLE_PANEL_H = PANEL_SIZES.normal.h;
   const YT_STORAGE_KEY = 'gpa_youtube_api_key';
   const THEME_KEY = 'gpa_theme';
   const CUSTOM_COLOR_KEY = 'gpa_custom_accent';
@@ -288,6 +295,13 @@
           <button class="gpa-btn icon-btn" data-icon="orbit">Orbit</button>
           <button class="gpa-btn icon-btn" data-icon="chat">Chat</button>
           <button class="gpa-btn icon-btn" data-icon="letter">Letter (G/O)</button>
+        </div>
+        <div class="gpa-sub" style="margin:14px 0 6px;">Interface size</div>
+        <div class="gpa-row">
+          <button class="gpa-btn size-btn" data-size="compact">Compact</button>
+          <button class="gpa-btn size-btn primary" data-size="normal">Normal</button>
+          <button class="gpa-btn size-btn" data-size="large">Large</button>
+          <button class="gpa-btn size-btn" data-size="xl">XL</button>
         </div>
         <div class="gpa-sub" style="margin:14px 0 6px;">Background particles</div>
         <div class="gpa-row" style="flex-wrap: wrap;">
@@ -490,13 +504,14 @@
       .quiz-btn:disabled { opacity: 0.65; cursor: default; transform: none; }
       .gpa-sub { color: ${t.sub}; font-size: 11px; flex: 1; }
       .gpa-output {
-        margin-top: 6px; flex: 1; min-height: 80px; overflow-y: auto;
+        margin-top: 6px; flex: 0 1 auto; min-height: 0; max-height: 260px; overflow-y: auto;
         font-size: 12.5px; line-height: 1.6; white-space: pre-wrap;
         overflow-wrap: break-word; word-break: break-word;
         font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
         padding: 8px; background: ${t.field}; border-radius: 8px;
         border: 1px solid ${t.border};
       }
+      .gpa-output:empty { display: none; }
       .gpa-error {
         display: flex; align-items: flex-start; gap: 8px;
         background: rgba(229, 69, 58, 0.1); border: 1px solid rgba(229, 69, 58, 0.35);
@@ -554,8 +569,8 @@
       }
       .provider-btn { flex: 1; }
       .provider-btn.primary { background: ${t.accent}; color: #fff; border-color: ${t.accent}; }
-      .speed-btn, .font-btn, .particle-btn { flex: 1; padding: 6px 4px; font-size: 11px; }
-      .speed-btn.primary, .font-btn.primary, .particle-btn.primary { background: ${t.accent}; color: #fff; border-color: ${t.accent}; }
+      .speed-btn, .font-btn, .particle-btn, .icon-btn, .size-btn { flex: 1; padding: 6px 4px; font-size: 11px; }
+      .speed-btn.primary, .font-btn.primary, .particle-btn.primary, .icon-btn.primary, .size-btn.primary { background: ${t.accent}; color: #fff; border-color: ${t.accent}; }
       .gpa-range {
         width: 100%; -webkit-appearance: none; appearance: none;
         height: 4px; border-radius: 2px; background: ${t.border}; outline: none;
@@ -638,8 +653,12 @@
       if (!dragging) return;
       const p = 'touches' in e ? e.touches[0] : e;
       let x = p.clientX - offX, y = p.clientY - offY;
-      x = Math.max(0, Math.min(window.innerWidth - 60, x));
-      y = Math.max(0, Math.min(window.innerHeight - 40, y));
+      // Clamp against the panel's ACTUAL current size (mini dot, settled
+      // panel, or whichever size preset is active) so it can never be
+      // dragged past the edge of the visible window.
+      const rect = host.getBoundingClientRect();
+      x = Math.max(0, Math.min(window.innerWidth - rect.width, x));
+      y = Math.max(0, Math.min(window.innerHeight - rect.height, y));
       host.style.left = x + 'px';
       host.style.top = y + 'px';
     }
@@ -671,8 +690,8 @@
     body.style.display = v ? 'none' : 'flex';
     headerEl.style.display = v ? 'none' : 'flex';
     minimized.style.display = v ? 'flex' : 'none';
-    panel.style.width = v ? 'auto' : '';
-    panel.style.height = v ? 'auto' : '';
+    panel.style.width = v ? 'auto' : (PANEL_SIZES[panelSizeKey] || PANEL_SIZES.normal).w + 'px';
+    panel.style.height = v ? 'auto' : (PANEL_SIZES[panelSizeKey] || PANEL_SIZES.normal).h + 'px';
     panel.style.background = v ? 'transparent' : THEMES[theme].panel;
     panel.style.boxShadow = v ? 'none' : '';
     panel.style.border = v ? 'none' : '';
@@ -1036,6 +1055,36 @@
     localStorage.setItem(PARTICLE_SIZE_KEY, String(particleMargin));
     resizeParticleCanvas();
     initParticles(localStorage.getItem(PARTICLE_KEY) || 'off');
+  });
+
+  // ---- Interface size presets ---------------------------------------------
+  let panelSizeKey = localStorage.getItem(PANEL_SIZE_KEY) || 'normal';
+  if (!PANEL_SIZES[panelSizeKey]) panelSizeKey = 'normal';
+  const sizeBtns = panel.querySelectorAll('.size-btn');
+  function setSizeUI(s) {
+    sizeBtns.forEach((b) => b.classList.toggle('primary', b.dataset.size === s));
+  }
+  function applyPanelSize(key) {
+    panelSizeKey = PANEL_SIZES[key] ? key : 'normal';
+    localStorage.setItem(PANEL_SIZE_KEY, panelSizeKey);
+    const { w, h } = PANEL_SIZES[panelSizeKey];
+    if (!isMin) {
+      panel.style.width = w + 'px';
+      panel.style.height = h + 'px';
+    }
+    // Keep the ambient particle field sized to whatever the panel is now.
+    PARTICLE_PANEL_W = w;
+    PARTICLE_PANEL_H = h;
+    resizeParticleCanvas();
+    initParticles(localStorage.getItem(PARTICLE_KEY) || 'off');
+  }
+  setSizeUI(panelSizeKey);
+  applyPanelSize(panelSizeKey);
+  sizeBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setSizeUI(btn.dataset.size);
+      applyPanelSize(btn.dataset.size);
+    });
   });
 
   // ---- Gemini API helpers -----------------------------------------------
@@ -1515,13 +1564,14 @@
       if (!pageText && !screenshotDataUrl) { scanOutput.textContent = 'Scan the page or capture the screen first.'; return; }
       const action = btn.dataset.action;
       const sys = action === 'summarize'
-        ? 'Summarize the provided content in plain, everyday sentences — the shortest version that still covers the essentials. No markdown formatting (no asterisks, headers, or numbered/bulleted lists) since this is shown as plain text. If both page text and a screenshot are provided, use both together.'
-        : 'Give a brief, plain-language read on the provided content: what it\'s about, the main point, and anything notable — a few sentences, not a breakdown. No markdown formatting (no asterisks, headers, or numbered/bulleted lists) since this is shown as plain text. If both page text and a screenshot are provided, use both together.';
+        ? 'Summarize the provided content in plain, everyday sentences — the shortest version that still covers the essentials. No markdown formatting (no asterisks, headers, or numbered/bulleted lists) since this is shown as plain text. If both page text and a screenshot are provided, use both together. Then, on its own final line, write exactly "CONFIDENCE: NN" where NN (0-100) is how confident you are that this summary faithfully and accurately represents the source content.'
+        : 'Give a brief, plain-language read on the provided content: what it\'s about, the main point, and anything notable — a few sentences, not a breakdown. No markdown formatting (no asterisks, headers, or numbered/bulleted lists) since this is shown as plain text. If both page text and a screenshot are provided, use both together. Then, on its own final line, write exactly "CONFIDENCE: NN" where NN (0-100) is how confident you are that this analysis is accurate.';
       scanOutput.textContent = 'Thinking…';
       try {
         const textPart = pageText ? `PAGE TEXT:\n${pageText}` : '(no page text captured — use the screenshot)';
         const out = await callAI(textPart, sys, screenshotDataUrl ? [screenshotDataUrl] : null);
-        typeText(scanOutput, out, scanOutput);
+        const { text: cleanText, confidence } = extractConfidenceLine(out);
+        typeText(scanOutput, cleanText, scanOutput, () => appendConfidenceBadge(scanOutput, confidence));
       } catch (e) {
         showError(scanOutput, e, currentProviderLabel());
       }
@@ -1662,8 +1712,10 @@
     chatEl.appendChild(thinking);
     chatEl.scrollTop = chatEl.scrollHeight;
     try {
-      const out = await callAI(q, 'You are a helpful, concise assistant. Reply in plain conversational sentences only — no markdown formatting (no asterisks, headers, or lists) since this is shown as plain text. Keep answers as short as possible while still being useful.');
-      typeText(thinking, out, chatEl);
+      const sys = 'You are a helpful, concise assistant. Reply in plain conversational sentences only — no markdown formatting (no asterisks, headers, or lists) since this is shown as plain text. Keep answers as short as possible while still being useful. Then, on its own final line, write exactly "CONFIDENCE: NN" where NN (0-100) is your confidence that the answer is accurate.';
+      const out = await callAI(q, sys);
+      const { text: cleanText, confidence } = extractConfidenceLine(out);
+      typeText(thinking, cleanText, chatEl, () => appendConfidenceBadge(thinking, confidence));
     } catch (e) {
       showError(thinking, e, currentProviderLabel());
     }
