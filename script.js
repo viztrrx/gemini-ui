@@ -2,9 +2,14 @@
  * Gemini Page Assistant — injectable console/bookmarklet AI overlay
  * -------------------------------------------------------------
  * WHAT THIS DOES
- *  - Reads the visible TEXT of the current page (document.body.innerText)
- *    and/or captures an actual SCREENSHOT (via getDisplayMedia), and sends
- *    either or both to Gemini to summarize, analyze, or answer questions.
+ *  - "Page Insights" tab: reads the visible TEXT of the current page
+ *    (document.body.innerText) and/or captures an actual SCREENSHOT (via
+ *    getDisplayMedia), and sends either or both to Gemini/OpenAI to
+ *    summarize, analyze, or answer questions. Includes a "Solve quiz on
+ *    this page" button that also reads dropdown (<select>) options and
+ *    radio/checkbox choices the AI can't see from plain page text, then
+ *    returns one answer per question — including multi-part ones like
+ *    "2a"/"2b" — as a small animated answer grid.
  *  - A general "Ask AI" chat section, independent of page content.
  *  - A "Music" section with two ways to play something:
  *      1) Type a song name/description ("mi historia entre tus dedos by
@@ -23,7 +28,9 @@
  *    soundcloud.com's own site — won't load here. That's a security
  *    protection those sites intentionally set, and this script does not
  *    attempt to circumvent it.
- *  - A "Theme" section to change the panel's color scheme.
+ *  - A "Theme" section to change the panel's color scheme, plus optional
+ *    ambient background particles (several styles, adjustable play area)
+ *    and AI provider/typing-speed/response-font controls.
  *  - All sections are switched via a dropdown in place of tabs.
  *  - Draggable panel, minimize/restore toggle.
  *
@@ -81,10 +88,9 @@
   const SPEED_KEY = 'gpa_type_speed';
   const FONT_KEY = 'gpa_response_font';
   const PARTICLE_KEY = 'gpa_particle_style';
-  const PARTICLE_DENSITY_KEY = 'gpa_particle_density';
-  const PARTICLE_MARGIN = 40;
-  const PARTICLE_BASE_W = 360 + PARTICLE_MARGIN * 2;
-  const PARTICLE_BASE_H = 480 + PARTICLE_MARGIN * 2;
+  const PARTICLE_SIZE_KEY = 'gpa_particle_margin';
+  const PARTICLE_PANEL_W = 360;
+  const PARTICLE_PANEL_H = 480;
   const YT_STORAGE_KEY = 'gpa_youtube_api_key';
   const THEME_KEY = 'gpa_theme';
   const CUSTOM_COLOR_KEY = 'gpa_custom_accent';
@@ -163,19 +169,22 @@
     <div class="gpa-body" id="gpa-body">
       <div class="gpa-dropdown" id="gpa-dropdown">
         <button class="gpa-dropdown-btn" id="gpa-dropdown-btn">
-          <span id="gpa-dropdown-label">Scan &amp; Analyze</span>
+          <span id="gpa-dropdown-label">Page Insights</span>
           <svg class="gpa-chevron" viewBox="0 0 20 20" width="13" height="13"><path d="M5 7l5 6 5-6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <div class="gpa-dropdown-menu" id="gpa-dropdown-menu">
-          <button class="gpa-dropdown-item active" data-tab="scan">Scan &amp; Analyze</button>
+          <button class="gpa-dropdown-item active" data-tab="scan">Page Insights</button>
           <button class="gpa-dropdown-item" data-tab="ask">Ask AI</button>
           <button class="gpa-dropdown-item" data-tab="music">Music</button>
           <button class="gpa-dropdown-item" data-tab="browser">Browser</button>
-          <button class="gpa-dropdown-item" data-tab="theme">Theme</button>
+          <button class="gpa-dropdown-item" data-tab="theme">Settings</button>
         </div>
       </div>
 
       <div class="gpa-pane active" data-pane="scan">
+        <div class="gpa-row">
+          <button id="gpa-quiz-btn" class="gpa-btn quiz-btn">✨ Solve quiz on this page</button>
+        </div>
         <div class="gpa-row">
           <button id="gpa-scan-btn" class="gpa-btn">Scan page text</button>
           <button id="gpa-capture-btn" class="gpa-btn">Capture screen</button>
@@ -269,11 +278,15 @@
           <button class="gpa-btn particle-btn" data-particle="snow">Snow</button>
           <button class="gpa-btn particle-btn" data-particle="bubbles">Bubbles</button>
           <button class="gpa-btn particle-btn" data-particle="stars">Stars</button>
+          <button class="gpa-btn particle-btn" data-particle="network">Network</button>
+          <button class="gpa-btn particle-btn" data-particle="fireflies">Fireflies</button>
+          <button class="gpa-btn particle-btn" data-particle="confetti">Confetti</button>
         </div>
-        <div class="gpa-row" style="margin-top:6px;">
-          <button class="gpa-btn density-btn" data-density="low">Low</button>
-          <button class="gpa-btn density-btn primary" data-density="medium">Medium</button>
-          <button class="gpa-btn density-btn" data-density="high">High</button>
+        <div class="gpa-row" style="margin-top:8px;">
+          <label for="gpa-particle-size" class="gpa-sub" style="flex:1;">Particle play area size</label>
+        </div>
+        <div class="gpa-row">
+          <input type="range" id="gpa-particle-size" class="gpa-range" min="0" max="260" step="10" />
         </div>
         <div class="gpa-row" style="margin-top:8px; flex-wrap: wrap;">
           <button id="gpa-clear-key" class="gpa-btn">Clear saved Gemini key</button>
@@ -298,7 +311,7 @@
       * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
       .gpa-particle-wrap { position: relative; }
       #gpa-particles {
-        position: absolute; inset: -40px; z-index: 0; pointer-events: none; display: none;
+        position: absolute; z-index: 0; pointer-events: none; display: none;
       }
       .gpa-panel { position: relative; z-index: 1; }
       .gpa-panel {
@@ -420,6 +433,22 @@
       .gpa-btn:active { transform: translateY(0) scale(0.96); }
       .gpa-btn.primary { background: ${t.accent}; color: #fff; border-color: ${t.accent}; }
       .gpa-btn.primary:hover { box-shadow: 0 0 0 3px ${t.accent}33; }
+      .quiz-btn {
+        width: 100%; padding: 11px; font-size: 12.5px; font-weight: 800;
+        letter-spacing: 0.3px; border: none; border-radius: 10px; cursor: pointer;
+        color: #fff; background: linear-gradient(120deg, ${t.accent}, ${t.accent}99, ${t.accent});
+        background-size: 220% 220%;
+        box-shadow: 0 4px 16px ${t.accent}55;
+        animation: gpa-shimmer 3.2s ease infinite;
+      }
+      @keyframes gpa-shimmer {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+      .quiz-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px ${t.accent}77; }
+      .quiz-btn:active { transform: translateY(0) scale(0.97); }
+      .quiz-btn:disabled { opacity: 0.65; cursor: default; transform: none; }
       .gpa-sub { color: ${t.sub}; font-size: 11px; flex: 1; }
       .gpa-output {
         margin-top: 6px; flex: 1; min-height: 80px; overflow-y: auto;
@@ -479,8 +508,22 @@
       }
       .provider-btn { flex: 1; }
       .provider-btn.primary { background: ${t.accent}; color: #fff; border-color: ${t.accent}; }
-      .speed-btn, .font-btn, .particle-btn, .density-btn { flex: 1; padding: 6px 4px; font-size: 11px; }
-      .speed-btn.primary, .font-btn.primary, .particle-btn.primary, .density-btn.primary { background: ${t.accent}; color: #fff; border-color: ${t.accent}; }
+      .speed-btn, .font-btn, .particle-btn { flex: 1; padding: 6px 4px; font-size: 11px; }
+      .speed-btn.primary, .font-btn.primary, .particle-btn.primary { background: ${t.accent}; color: #fff; border-color: ${t.accent}; }
+      .gpa-range {
+        width: 100%; -webkit-appearance: none; appearance: none;
+        height: 4px; border-radius: 2px; background: ${t.border}; outline: none;
+      }
+      .gpa-range::-webkit-slider-thumb {
+        -webkit-appearance: none; appearance: none;
+        width: 14px; height: 14px; border-radius: 50%;
+        background: ${t.accent}; cursor: pointer; border: 2px solid ${t.panel};
+        box-shadow: 0 0 0 2px ${t.accent}55;
+      }
+      .gpa-range::-moz-range-thumb {
+        width: 14px; height: 14px; border-radius: 50%; border: 2px solid ${t.panel};
+        background: ${t.accent}; cursor: pointer;
+      }
       .gpa-font-system .gpa-output, .gpa-font-system .gpa-msg.ai {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
       }
@@ -686,14 +729,27 @@
 
   // ---- Ambient particle background ---------------------------------------
   // A canvas that floats around the panel's edges (not on top of content,
-  // so it never blocks a click) with a few interactive styles. Particles
+  // so it never blocks a click) with several interactive styles. Particles
   // gently drift away from the cursor and are tinted with the current
   // theme's accent color, so switching themes re-colors them automatically.
+  // The "play area" (how far the particle field extends past the panel's
+  // edges) is adjustable via a slider in Settings.
   const particleCtx = particleCanvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
-  particleCanvas.width = PARTICLE_BASE_W * dpr;
-  particleCanvas.height = PARTICLE_BASE_H * dpr;
-  particleCtx.scale(dpr, dpr);
+  let particleMargin = parseInt(localStorage.getItem(PARTICLE_SIZE_KEY), 10);
+  if (isNaN(particleMargin)) particleMargin = 40;
+  let PW = PARTICLE_PANEL_W + particleMargin * 2;
+  let PH = PARTICLE_PANEL_H + particleMargin * 2;
+
+  function resizeParticleCanvas() {
+    PW = PARTICLE_PANEL_W + particleMargin * 2;
+    PH = PARTICLE_PANEL_H + particleMargin * 2;
+    particleCanvas.style.inset = `-${particleMargin}px`;
+    particleCanvas.width = PW * dpr;
+    particleCanvas.height = PH * dpr;
+    particleCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resizeParticleCanvas();
 
   let particles = [];
   let particleAnimId = null;
@@ -714,7 +770,7 @@
   }
 
   function makeParticle(styleName) {
-    const w = PARTICLE_BASE_W, h = PARTICLE_BASE_H;
+    const w = PW, h = PH;
     const p = { style: styleName };
     if (styleName === 'snow') {
       p.x = Math.random() * w; p.y = Math.random() * h;
@@ -728,6 +784,20 @@
       p.x = Math.random() * w; p.y = Math.random() * h;
       p.vx = 0; p.vy = 0; p.r = 1 + Math.random() * 1.8;
       p.phase = Math.random() * Math.PI * 2; p.speed = 0.015 + Math.random() * 0.03;
+    } else if (styleName === 'network') {
+      p.x = Math.random() * w; p.y = Math.random() * h;
+      p.vx = (Math.random() - 0.5) * 0.5; p.vy = (Math.random() - 0.5) * 0.5;
+      p.r = 1.8; p.alpha = 0.85;
+    } else if (styleName === 'fireflies') {
+      p.x = Math.random() * w; p.y = Math.random() * h;
+      p.vx = (Math.random() - 0.5) * 0.18; p.vy = (Math.random() - 0.5) * 0.18;
+      p.r = 2 + Math.random() * 2.5; p.phase = Math.random() * Math.PI * 2; p.speed = 0.01 + Math.random() * 0.02;
+    } else if (styleName === 'confetti') {
+      p.x = Math.random() * w; p.y = Math.random() * h - h;
+      p.vx = (Math.random() - 0.5) * 0.6; p.vy = 0.6 + Math.random() * 1.1;
+      p.rw = 4 + Math.random() * 4; p.rh = 3 + Math.random() * 3;
+      p.rot = Math.random() * Math.PI; p.vr = (Math.random() - 0.5) * 0.08;
+      p.shade = Math.floor(Math.random() * 3);
     } else { // sparkles (default)
       p.x = Math.random() * w; p.y = Math.random() * h;
       p.vx = (Math.random() - 0.5) * 0.15; p.vy = (Math.random() - 0.5) * 0.15;
@@ -739,21 +809,70 @@
   function initParticles(styleName) {
     particles = [];
     if (styleName === 'off') return;
-    const density = localStorage.getItem(PARTICLE_DENSITY_KEY) || 'medium';
-    const count = { low: 18, medium: 34, high: 55 }[density] || 34;
+    // Density scales with the play area so a bigger canvas doesn't look sparse.
+    const count = Math.max(16, Math.min(90, Math.round((PW * PH) / 4200)));
     for (let i = 0; i < count; i++) particles.push(makeParticle(styleName));
   }
 
   function stepParticles() {
     const styleName = localStorage.getItem(PARTICLE_KEY) || 'off';
     if (styleName === 'off') {
-      particleCtx.clearRect(0, 0, PARTICLE_BASE_W, PARTICLE_BASE_H);
+      particleCtx.clearRect(0, 0, PW, PH);
       particleAnimId = null;
       return;
     }
-    const w = PARTICLE_BASE_W, h = PARTICLE_BASE_H;
+    const w = PW, h = PH;
     particleCtx.clearRect(0, 0, w, h);
     const accent = THEMES[theme].accent;
+    const shadeColors = [accent, THEMES[theme].text, THEMES[theme].sub];
+
+    if (styleName === 'network') {
+      particles.forEach((p) => {
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0 || p.x > w) p.vx *= -1;
+        if (p.y < 0 || p.y > h) p.vy *= -1;
+      });
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const a = particles[i], b = particles[j];
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          const linkDist = Math.min(w, h) * 0.18;
+          if (d < linkDist) {
+            particleCtx.strokeStyle = hexToRgba(accent, 0.22 * (1 - d / linkDist));
+            particleCtx.lineWidth = 1;
+            particleCtx.beginPath();
+            particleCtx.moveTo(a.x, a.y);
+            particleCtx.lineTo(b.x, b.y);
+            particleCtx.stroke();
+          }
+        }
+      }
+      particles.forEach((p) => {
+        particleCtx.beginPath();
+        particleCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        particleCtx.fillStyle = hexToRgba(accent, p.alpha);
+        particleCtx.fill();
+      });
+      particleAnimId = requestAnimationFrame(stepParticles);
+      return;
+    }
+
+    if (styleName === 'confetti') {
+      particles.forEach((p) => {
+        p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        if (p.y > h + 10) { p.y = -10; p.x = Math.random() * w; }
+        particleCtx.save();
+        particleCtx.translate(p.x, p.y);
+        particleCtx.rotate(p.rot);
+        particleCtx.globalAlpha = 0.85;
+        particleCtx.fillStyle = shadeColors[p.shade % shadeColors.length];
+        particleCtx.fillRect(-p.rw / 2, -p.rh / 2, p.rw, p.rh);
+        particleCtx.restore();
+      });
+      particleAnimId = requestAnimationFrame(stepParticles);
+      return;
+    }
+
     particles.forEach((p) => {
       const dx = p.x - mouseX, dy = p.y - mouseY;
       const dist = Math.hypot(dx, dy);
@@ -778,6 +897,19 @@
       } else if (p.style === 'stars') {
         p.phase += p.speed;
         alpha = 0.2 + Math.abs(Math.sin(p.phase)) * 0.8;
+      } else if (p.style === 'fireflies') {
+        p.x += p.vx; p.y += p.vy;
+        p.phase += p.speed;
+        if (p.x < 0 || p.x > w) p.vx *= -1;
+        if (p.y < 0 || p.y > h) p.vy *= -1;
+        alpha = 0.25 + Math.abs(Math.sin(p.phase)) * 0.6;
+        const glow = particleCtx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
+        glow.addColorStop(0, hexToRgba(accent, alpha));
+        glow.addColorStop(1, hexToRgba(accent, 0));
+        particleCtx.fillStyle = glow;
+        particleCtx.beginPath();
+        particleCtx.arc(p.x, p.y, p.r * 4, 0, Math.PI * 2);
+        particleCtx.fill();
       } else { // sparkles
         p.x += p.vx; p.y += p.vy;
         p.phase += p.speed;
@@ -806,12 +938,7 @@
   function setParticleUI(s) {
     particleBtns.forEach((b) => b.classList.toggle('primary', b.dataset.particle === s));
   }
-  const densityBtns = panel.querySelectorAll('.density-btn');
-  function setDensityUI(d) {
-    densityBtns.forEach((b) => b.classList.toggle('primary', b.dataset.density === d));
-  }
   setParticleUI(localStorage.getItem(PARTICLE_KEY) || 'off');
-  setDensityUI(localStorage.getItem(PARTICLE_DENSITY_KEY) || 'medium');
   setParticleStyle(localStorage.getItem(PARTICLE_KEY) || 'off');
 
   particleBtns.forEach((btn) => {
@@ -820,12 +947,14 @@
       setParticleStyle(btn.dataset.particle);
     });
   });
-  densityBtns.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      localStorage.setItem(PARTICLE_DENSITY_KEY, btn.dataset.density);
-      setDensityUI(btn.dataset.density);
-      initParticles(localStorage.getItem(PARTICLE_KEY) || 'off');
-    });
+
+  const particleSizeInput = panel.querySelector('#gpa-particle-size');
+  particleSizeInput.value = particleMargin;
+  particleSizeInput.addEventListener('input', (e) => {
+    particleMargin = parseInt(e.target.value, 10);
+    localStorage.setItem(PARTICLE_SIZE_KEY, String(particleMargin));
+    resizeParticleCanvas();
+    initParticles(localStorage.getItem(PARTICLE_KEY) || 'off');
   });
 
   // ---- Gemini API helpers -----------------------------------------------
@@ -1029,6 +1158,42 @@
     return text;
   }
 
+  // Reads answer choices the AI can't see from plain page text: closed
+  // <select> dropdowns (only the currently-picked option renders as text)
+  // and radio/checkbox groups (their option labels aren't always adjacent
+  // to visible question text in a way innerText captures cleanly).
+  function extractQuizChoices() {
+    const lines = [];
+    document.querySelectorAll('select').forEach((sel, idx) => {
+      const opts = Array.from(sel.options).map((o) => o.text.trim()).filter(Boolean);
+      if (opts.length) {
+        const hint = sel.getAttribute('aria-label') || sel.name || sel.id || `dropdown ${idx + 1}`;
+        lines.push(`Dropdown "${hint}" choices: ${opts.join(' | ')}`);
+      }
+    });
+    function labelFor(input) {
+      if (input.id) {
+        try {
+          const lbl = document.querySelector(`label[for="${CSS.escape(input.id)}"]`);
+          if (lbl && lbl.textContent.trim()) return lbl.textContent.trim();
+        } catch (e) { /* invalid id for CSS.escape — ignore */ }
+      }
+      const wrapLabel = input.closest('label');
+      if (wrapLabel && wrapLabel.textContent.trim()) return wrapLabel.textContent.trim();
+      return input.value || '';
+    }
+    const groups = {};
+    document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach((input) => {
+      const key = `${input.type}:${input.name || 'unnamed'}`;
+      const text = labelFor(input);
+      if (text) (groups[key] = groups[key] || []).push(text);
+    });
+    Object.entries(groups).forEach(([key, opts]) => {
+      if (opts.length > 1) lines.push(`Multiple-choice options for "${key.split(':')[1]}": ${opts.join(' | ')}`);
+    });
+    return lines.join('\n');
+  }
+
   // Opens the browser's native screen/window/tab picker, grabs ONE frame,
   // then immediately stops sharing. Requires a genuine user click and https.
   async function captureScreen() {
@@ -1085,6 +1250,37 @@
     thumb.classList.toggle('show', !!screenshotDataUrl);
     thumb.src = screenshotDataUrl || '';
   }
+
+  // ---- Quiz solver: reads page text + dropdown/radio/checkbox choices,
+  // returns one answer per question (including multi-part like "2a"/"2b")
+  // as the same structured grid used for plain answer-key questions.
+  const quizBtn = panel.querySelector('#gpa-quiz-btn');
+  quizBtn.addEventListener('click', async () => {
+    if (!pageText) pageText = extractPageText();
+    refreshStatus();
+    const choices = extractQuizChoices();
+    const combinedText = choices
+      ? `${pageText}\n\nFORM CONTROLS ON THIS PAGE (dropdowns / multiple-choice / checkboxes):\n${choices}`
+      : pageText;
+
+    const prevLabel = quizBtn.textContent;
+    quizBtn.textContent = 'Solving…';
+    quizBtn.disabled = true;
+    scanOutput.innerHTML = '';
+    scanOutput.textContent = 'Reading the page…';
+    try {
+      const sys = 'You are analyzing a quiz, exam, or worksheet on this web page, including any dropdown menus and multiple-choice/checkbox options listed under FORM CONTROLS ON THIS PAGE. Identify every question — including multi-part questions like "2a"/"2b" — and give the single best correct answer for each, using the dropdown/multiple-choice options where relevant. Respond with ONLY a JSON array in this exact shape and nothing else: [{"q":"1","a":"B"},{"q":"2a","a":"True"}] — "q" is the question number/label as a string (use sub-labels for multi-part questions), "a" is the short correct answer. If you genuinely cannot determine an answer for an item, use "a":"Unclear". Do not include any text outside the JSON array.';
+      const out = await callAI(combinedText, sys, screenshotDataUrl ? [screenshotDataUrl] : null);
+      const grid = tryParseAnswerGrid(out);
+      if (grid) renderAnswerGrid(scanOutput, grid);
+      else typeText(scanOutput, out, scanOutput);
+    } catch (e) {
+      showError(scanOutput, e, currentProviderLabel());
+    } finally {
+      quizBtn.textContent = prevLabel;
+      quizBtn.disabled = false;
+    }
+  });
 
   scanBtn.addEventListener('click', () => {
     pageText = extractPageText();
