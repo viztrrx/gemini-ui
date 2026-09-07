@@ -171,6 +171,11 @@
   particleWrap.appendChild(panel);
 
   panel.innerHTML = `
+    <span class="gpa-corner gpa-corner-tl"></span>
+    <span class="gpa-corner gpa-corner-tr"></span>
+    <span class="gpa-corner gpa-corner-bl"></span>
+    <span class="gpa-corner gpa-corner-br"></span>
+    <div class="gpa-scanline"></div>
     <div class="gpa-header" id="gpa-drag">
       <button id="gpa-min" title="Minimize">&minus;</button>
       <span class="gpa-title">Gemini Page Assistant</span>
@@ -374,9 +379,9 @@
         flex-direction: column;
         background: ${t.panel};
         color: ${t.text};
-        border: 1px solid ${t.border};
-        border-radius: 12px;
-        box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+        border: 1px solid ${t.accent}55;
+        border-radius: 7px;
+        box-shadow: 0 16px 40px rgba(0,0,0,0.5), 0 0 0 1px ${t.accent}22, 0 0 24px ${t.accent}33;
         overflow: hidden;
         user-select: none;
         animation: gpa-panel-in 0.32s cubic-bezier(0.16, 1, 0.3, 1);
@@ -385,12 +390,31 @@
         from { opacity: 0; transform: scale(0.92) translateY(8px); }
         to { opacity: 1; transform: scale(1) translateY(0); }
       }
+      .gpa-corner {
+        position: absolute; width: 14px; height: 14px; pointer-events: none; z-index: 3;
+      }
+      .gpa-corner-tl { top: -1px; left: -1px; border-top: 2px solid ${t.accent}; border-left: 2px solid ${t.accent}; }
+      .gpa-corner-tr { top: -1px; right: -1px; border-top: 2px solid ${t.accent}; border-right: 2px solid ${t.accent}; }
+      .gpa-corner-bl { bottom: -1px; left: -1px; border-bottom: 2px solid ${t.accent}; border-left: 2px solid ${t.accent}; }
+      .gpa-corner-br { bottom: -1px; right: -1px; border-bottom: 2px solid ${t.accent}; border-right: 2px solid ${t.accent}; }
+      .gpa-scanline {
+        position: absolute; left: 0; right: 0; top: 0; height: 2px; z-index: 2;
+        background: linear-gradient(90deg, transparent, ${t.accent}, transparent);
+        opacity: 0.55; pointer-events: none;
+        animation: gpa-scan-sweep 4.5s linear infinite;
+      }
+      @keyframes gpa-scan-sweep {
+        0% { top: 0; opacity: 0; }
+        10% { opacity: 0.55; }
+        90% { opacity: 0.55; }
+        100% { top: 100%; opacity: 0; }
+      }
       .gpa-header {
         display: flex; align-items: center; gap: 8px;
         padding: 8px 10px;
         background: ${t.bg};
         cursor: grab;
-        border-bottom: 1px solid ${t.border};
+        border-bottom: 1px solid ${t.accent}44;
         flex-shrink: 0;
       }
       .gpa-header:active { cursor: grabbing; }
@@ -403,7 +427,12 @@
         display:flex; align-items:center; justify-content:center;
         flex-shrink: 0;
       }
-      .gpa-title { font-size: 12.5px; font-weight: 600; letter-spacing: 0.2px; flex: 1; }
+      .gpa-title {
+        font-size: 10.5px; font-weight: 700; letter-spacing: 1.4px; flex: 1;
+        text-transform: uppercase;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+        color: ${t.text};
+      }
       .gpa-dot {
         width: 7px; height: 7px; border-radius: 50%; background: ${t.accent}; flex-shrink:0;
         box-shadow: 0 0 0 0 ${t.accent}80;
@@ -427,9 +456,12 @@
       .gpa-dropdown { position: relative; margin-bottom: 10px; flex-shrink: 0; }
       .gpa-dropdown-btn {
         width: 100%; display: flex; align-items: center; justify-content: space-between;
-        padding: 9px 12px; font-size: 12.5px; font-weight: 700; letter-spacing: 0.2px;
-        border-radius: 9px; cursor: pointer; color: ${t.text};
-        border: 1px solid ${t.border};
+        padding: 9px 12px; font-size: 11px; font-weight: 700; letter-spacing: 1px;
+        text-transform: uppercase;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+        clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+        cursor: pointer; color: ${t.text};
+        border: 1px solid ${t.accent}55;
         background: linear-gradient(180deg, ${t.field}, ${t.panel});
         box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset;
         transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -443,22 +475,25 @@
       .gpa-dropdown.open .gpa-chevron { transform: rotate(180deg); }
       .gpa-dropdown-menu {
         position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 5;
-        background: ${t.panel}; border: 1px solid ${t.border}; border-radius: 10px;
-        box-shadow: 0 14px 30px rgba(0,0,0,0.5);
+        background: ${t.panel}; border: 1px solid ${t.accent}55;
+        clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+        box-shadow: 0 14px 30px rgba(0,0,0,0.5), 0 0 20px ${t.accent}22;
         overflow: hidden; opacity: 0; transform: translateY(-4px) scale(0.98);
         pointer-events: none; transition: opacity 0.14s ease, transform 0.14s ease;
       }
       .gpa-dropdown.open .gpa-dropdown-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
       .gpa-dropdown-item {
         display: block; width: 100%; text-align: left; padding: 9px 12px;
-        font-size: 12px; font-weight: 600; color: ${t.sub};
+        font-size: 10.5px; font-weight: 700; color: ${t.sub};
+        letter-spacing: 0.8px; text-transform: uppercase;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
         background: transparent; border: none; border-bottom: 1px solid ${t.border};
         cursor: pointer;
       }
       .gpa-dropdown-item:last-child { border-bottom: none; }
       .gpa-dropdown-item:hover { background: ${t.field}; color: ${t.text}; }
       .gpa-dropdown-item.active { color: ${t.accent}; }
-      .gpa-dropdown-item.active::before { content: '● '; }
+      .gpa-dropdown-item.active::before { content: '▸ '; }
       .gpa-pane { display: none; }
       .gpa-pane.active {
         display: flex; flex-direction: column; flex: 1; min-height: 0;
@@ -471,24 +506,30 @@
       .gpa-row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-shrink: 0; }
       .gpa-actions { flex-wrap: wrap; }
       .gpa-input {
-        flex: 1; padding: 7px 9px; border-radius: 7px;
+        flex: 1; padding: 7px 9px; border-radius: 5px;
         border: 1px solid ${t.border}; background: ${t.field}; color: ${t.text};
         font-size: 12.5px; outline: none;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
       }
-      .gpa-input:focus { border-color: ${t.accent}; }
+      .gpa-input:focus { border-color: ${t.accent}; box-shadow: 0 0 0 2px ${t.accent}33; }
       .gpa-btn {
-        padding: 7px 10px; border-radius: 7px; border: 1px solid ${t.border};
-        background: ${t.field}; color: ${t.text}; font-size: 12px; font-weight: 600;
+        padding: 7px 10px; border: 1px solid ${t.border};
+        background: ${t.field}; color: ${t.text}; font-size: 10.5px; font-weight: 700;
+        letter-spacing: 0.6px; text-transform: uppercase;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+        clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
         cursor: pointer; white-space: nowrap;
         transition: border-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
       }
-      .gpa-btn:hover { border-color: ${t.accent}; transform: translateY(-1px); }
+      .gpa-btn:hover { border-color: ${t.accent}; transform: translateY(-1px); box-shadow: 0 0 12px ${t.accent}44; }
       .gpa-btn:active { transform: translateY(0) scale(0.96); }
       .gpa-btn.primary { background: ${t.accent}; color: #fff; border-color: ${t.accent}; }
       .gpa-btn.primary:hover { box-shadow: 0 0 0 3px ${t.accent}33; }
       .quiz-btn {
-        width: 100%; padding: 11px; font-size: 12.5px; font-weight: 800;
-        letter-spacing: 0.3px; border: none; border-radius: 10px; cursor: pointer;
+        width: 100%; padding: 11px; font-size: 11.5px; font-weight: 800;
+        letter-spacing: 0.8px; text-transform: uppercase; border: none; cursor: pointer;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+        clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
         color: #fff; background: linear-gradient(120deg, ${t.accent}, ${t.accent}99, ${t.accent});
         background-size: 220% 220%;
         box-shadow: 0 4px 16px ${t.accent}55;
@@ -502,14 +543,18 @@
       .quiz-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px ${t.accent}77; }
       .quiz-btn:active { transform: translateY(0) scale(0.97); }
       .quiz-btn:disabled { opacity: 0.65; cursor: default; transform: none; }
-      .gpa-sub { color: ${t.sub}; font-size: 11px; flex: 1; }
+      .gpa-sub {
+        color: ${t.sub}; font-size: 10px; flex: 1; letter-spacing: 0.5px;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      }
       .gpa-output {
         margin-top: 6px; flex: 0 1 auto; min-height: 0; max-height: 260px; overflow-y: auto;
         font-size: 12.5px; line-height: 1.6; white-space: pre-wrap;
         overflow-wrap: break-word; word-break: break-word;
         font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
-        padding: 8px; background: ${t.field}; border-radius: 8px;
-        border: 1px solid ${t.border};
+        padding: 8px; background: ${t.field}; border-radius: 6px;
+        border: 1px solid ${t.accent}40;
+        box-shadow: 0 0 0 1px ${t.accent}15 inset;
       }
       .gpa-output:empty { display: none; }
       .gpa-error {
@@ -589,12 +634,33 @@
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
       }
       .gpa-mini {
+        position: relative;
         width: 40px; height: 40px; border-radius: 50%;
-        background: ${t.accent}; color: #fff; display: flex;
-        align-items: center; justify-content: center; font-size: 18px;
-        font-weight: 800; cursor: grab; box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        background: radial-gradient(circle at 35% 30%, ${t.accent}, ${t.bg} 78%);
+        color: #fff; display: flex;
+        align-items: center; justify-content: center; font-size: 16px;
+        font-weight: 800; cursor: grab; overflow: visible;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+        box-shadow: 0 0 14px 2px ${t.accent}88, 0 8px 20px rgba(0,0,0,0.45);
+        animation: gpa-orb-pulse 2.4s ease-in-out infinite;
       }
-      .gpa-mini svg { width: 20px; height: 20px; fill: #fff; }
+      .gpa-mini::before {
+        content: ''; position: absolute; inset: -6px; border-radius: 50%;
+        border: 2px solid transparent; border-top-color: ${t.accent}; border-right-color: ${t.accent}66;
+        animation: gpa-orb-spin 3s linear infinite;
+      }
+      .gpa-mini::after {
+        content: ''; position: absolute; inset: -12px; border-radius: 50%;
+        border: 1px dashed ${t.accent}55;
+        animation: gpa-orb-spin-rev 7s linear infinite;
+      }
+      .gpa-mini svg { width: 18px; height: 18px; fill: #fff; position: relative; z-index: 1; }
+      @keyframes gpa-orb-pulse {
+        0%, 100% { box-shadow: 0 0 14px 2px ${t.accent}88, 0 8px 20px rgba(0,0,0,0.45); }
+        50% { box-shadow: 0 0 24px 6px ${t.accent}cc, 0 8px 24px rgba(0,0,0,0.5); }
+      }
+      @keyframes gpa-orb-spin { to { transform: rotate(360deg); } }
+      @keyframes gpa-orb-spin-rev { to { transform: rotate(-360deg); } }
       #gpa-root-host.gpa-settling {
         transition: left 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
       }
