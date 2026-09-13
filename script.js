@@ -232,6 +232,10 @@
             <div class="gpa-login-company">Northwind Workspace</div>
             <div class="gpa-login-dept">Employee Resource Portal</div>
           </div>
+          <div class="gpa-login-winbtns">
+            <button id="gpa-login-min" class="gpa-login-winbtn" title="Minimize">&minus;</button>
+            <button id="gpa-login-close" class="gpa-login-winbtn" title="Close">&times;</button>
+          </div>
         </div>
         <div class="gpa-login-divider"></div>
         <div class="gpa-login-heading">Sign in to your account</div>
@@ -954,6 +958,28 @@
       /* Login screen deliberately ignores the app theme — it's plain,
          corporate and boring by design, so it reads as an ordinary
          internal work portal rather than part of the console UI. */
+      /* While signed out the panel drops its angular HUD silhouette for
+         plain rounded corners, and the HUD chrome (brackets, scanline) is
+         hidden so the login reads as an ordinary window. */
+      .gpa-panel.gpa-locked {
+        clip-path: none !important;
+        border-radius: 14px !important;
+        border-color: #d6d9de !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.28) !important;
+      }
+      .gpa-panel.gpa-locked .gpa-corner,
+      .gpa-panel.gpa-locked .gpa-scanline { display: none !important; }
+      .gpa-panel.gpa-locked .gpa-login { border-radius: 14px; }
+      /* Neutral, quiet button while signed out — no accent glow or rings. */
+      .gpa-mini.gpa-mini-locked {
+        background: linear-gradient(180deg, #6b7684, #59626f) !important;
+        border: 1px solid #7d8794;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+        animation: none !important;
+        color: #fff;
+      }
+      .gpa-mini.gpa-mini-locked::before,
+      .gpa-mini.gpa-mini-locked::after { display: none !important; }
       .gpa-login {
         position: absolute; inset: 0; z-index: 40;
         background: #f4f5f7;
@@ -966,7 +992,18 @@
         border: 1px solid #d6d9de; border-radius: 2px; padding: 20px 18px;
         box-shadow: 0 1px 2px rgba(0,0,0,0.06);
       }
-      .gpa-login-brand { display: flex; align-items: center; gap: 10px; }
+      .gpa-login-brand { display: flex; align-items: center; gap: 10px; cursor: grab; }
+      .gpa-login-brand:active { cursor: grabbing; }
+      .gpa-login-brandtext { flex: 1; min-width: 0; }
+      .gpa-login-winbtns { display: flex; gap: 4px; flex-shrink: 0; }
+      .gpa-login-winbtn {
+        width: 20px; height: 20px; border: 1px solid #c4c9d0; background: #fff;
+        color: #4b5563; border-radius: 3px; cursor: pointer; line-height: 1;
+        font-size: 13px; display: flex; align-items: center; justify-content: center;
+        font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+      }
+      .gpa-login-winbtn:hover { background: #eef1f5; color: #1f2933; }
+      #gpa-login-close:hover { background: #b42318; border-color: #b42318; color: #fff; }
       .gpa-login-logo {
         width: 34px; height: 34px; flex-shrink: 0; background: #1f4e8c; color: #fff;
         display: flex; align-items: center; justify-content: center;
@@ -1220,10 +1257,10 @@
     function end() { dragging = null; }
 
     root.addEventListener('mousedown', (e) => {
-      if (e.target.closest('#gpa-drag') || e.target.closest('.gpa-mini')) start(e);
+      if (e.target.closest('#gpa-drag') || e.target.closest('.gpa-mini') || e.target.closest('.gpa-login-brand')) start(e);
     });
     root.addEventListener('touchstart', (e) => {
-      if (e.target.closest('#gpa-drag') || e.target.closest('.gpa-mini')) start(e);
+      if (e.target.closest('#gpa-drag') || e.target.closest('.gpa-mini') || e.target.closest('.gpa-login-brand')) start(e);
     }, { passive: false });
     window.addEventListener('mousemove', move);
     window.addEventListener('touchmove', move, { passive: false });
@@ -1280,7 +1317,9 @@
       host.style.top = newTop + 'px';
     }
 
-    const activeParticleStyle = localStorage.getItem(PARTICLE_KEY) || 'off';
+    // Signed out, particles stay off regardless of the stored preference.
+    const signedIn = typeof currentUser !== 'undefined' && currentUser;
+    const activeParticleStyle = signedIn ? (localStorage.getItem(PARTICLE_KEY) || 'off') : 'off';
     if (v) {
       particleCanvas.style.display = 'none';
       if (particleAnimId) { cancelAnimationFrame(particleAnimId); particleAnimId = null; }
@@ -1640,7 +1679,9 @@
     particleBtns.forEach((b) => b.classList.toggle('primary', b.dataset.particle === s));
   }
   setParticleUI(localStorage.getItem(PARTICLE_KEY) || 'off');
-  setParticleStyle(localStorage.getItem(PARTICLE_KEY) || 'off');
+  // Particles stay off until someone signs in — before login we don't know
+  // whose preference applies, and the login screen should look plain.
+  setParticleStyle('off');
 
   particleBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -2724,17 +2765,40 @@
     } catch (e) { /* a restored-but-odd value shouldn't block sign-in */ }
   }
 
+  // Toggles every "signed out" visual: plain rounded window, no HUD chrome,
+  // no particles, neutral minimized button.
+  function setLockedChrome(locked) {
+    panel.classList.toggle('gpa-locked', locked);
+    minimized.classList.toggle('gpa-mini-locked', locked);
+    if (locked) {
+      minimized.textContent = '';
+      if (typeof setParticleStyle === 'function') setParticleStyle('off');
+    } else if (typeof renderMiniIcon === 'function') {
+      renderMiniIcon();
+    }
+  }
+
   function enterApp(user) {
     currentUser = user;
     localStorage.setItem(SESSION_KEY, user);
     loginOverlay.style.display = 'none';
+    setLockedChrome(false);
     refreshAccountUI();
     reapplyAllSettings();
+    // Particles were held off until now so the login screen stays plain and
+    // doesn't leak the previous user's preference.
+    if (typeof setParticleStyle === 'function') {
+      setParticleStyle(localStorage.getItem(PARTICLE_KEY) || 'off');
+    }
     const cloudBin = panel.querySelector('#gpa-cloud-bin');
     const cloudKey = panel.querySelector('#gpa-cloud-key');
     if (cloudBin) cloudBin.value = localStorage.getItem(CLOUD_BIN_KEY) || '';
     if (cloudKey) cloudKey.value = localStorage.getItem(CLOUD_SECRET_KEY) || '';
   }
+
+  // Login-screen window controls (the panel header is covered while locked).
+  panel.querySelector('#gpa-login-min').addEventListener('click', () => setMinimized(true));
+  panel.querySelector('#gpa-login-close').addEventListener('click', () => host.remove());
 
   async function doSignIn() {
     const user = loginUserInput.value.trim();
@@ -4829,6 +4893,7 @@
     loginPinInput.value = '';
     showLoginMsg('Signed out — your progress is saved.');
     loginOverlay.style.display = 'flex';
+    setLockedChrome(true);
   });
 
   panel.querySelector('#gpa-sync-export').addEventListener('click', () => {
@@ -4920,6 +4985,7 @@
     } else {
       localStorage.removeItem(SESSION_KEY);
       loginOverlay.style.display = 'flex';
+      setLockedChrome(true);
       refreshAccountUI();
     }
   })();
