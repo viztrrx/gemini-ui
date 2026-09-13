@@ -227,7 +227,7 @@
     <div class="gpa-login" id="gpa-login">
       <div class="gpa-login-card">
         <div class="gpa-login-brand">
-          <div class="gpa-login-logo">NW</div>
+          <button id="gpa-signup-btn" class="gpa-login-logo" title="Register new account">NW</button>
           <div class="gpa-login-brandtext">
             <div class="gpa-login-company">Northwind Workspace</div>
             <div class="gpa-login-dept">Employee Resource Portal</div>
@@ -246,8 +246,6 @@
         <div id="gpa-login-msg" class="gpa-login-msg"></div>
         <button id="gpa-login-btn" class="gpa-login-primary">Sign In</button>
         <div class="gpa-login-actions">
-          <button id="gpa-signup-btn" class="gpa-login-link">Register new account</button>
-          <span class="gpa-login-sep">|</span>
           <button id="gpa-login-restore" class="gpa-login-link">Transfer access code</button>
         </div>
         <div class="gpa-login-footer">
@@ -1008,7 +1006,12 @@
         width: 34px; height: 34px; flex-shrink: 0; background: #1f4e8c; color: #fff;
         display: flex; align-items: center; justify-content: center;
         font-size: 13px; font-weight: 700; letter-spacing: 0.5px; border-radius: 2px;
+        border: none; padding: 0; cursor: pointer;
+        font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+        transition: background 0.15s ease, box-shadow 0.15s ease;
       }
+      .gpa-login-logo:hover { background: #17406f; box-shadow: 0 0 0 3px rgba(31,78,140,0.18); }
+      .gpa-login-logo:active { background: #12325a; }
       .gpa-login-company { font-size: 13px; font-weight: 600; color: #1f2933; line-height: 1.2; }
       .gpa-login-dept { font-size: 10px; color: #6b7280; margin-top: 2px; }
       .gpa-login-divider { height: 1px; background: #e4e6ea; margin: 14px 0; }
@@ -1257,10 +1260,10 @@
     function end() { dragging = null; }
 
     root.addEventListener('mousedown', (e) => {
-      if (e.target.closest('#gpa-drag') || e.target.closest('.gpa-mini') || e.target.closest('.gpa-login-brand')) start(e);
+      if (e.target.closest('#gpa-drag') || e.target.closest('.gpa-mini') || (e.target.closest('.gpa-login-brand') && !e.target.closest('.gpa-login-logo') && !e.target.closest('.gpa-login-winbtns'))) start(e);
     });
     root.addEventListener('touchstart', (e) => {
-      if (e.target.closest('#gpa-drag') || e.target.closest('.gpa-mini') || e.target.closest('.gpa-login-brand')) start(e);
+      if (e.target.closest('#gpa-drag') || e.target.closest('.gpa-mini') || (e.target.closest('.gpa-login-brand') && !e.target.closest('.gpa-login-logo') && !e.target.closest('.gpa-login-winbtns'))) start(e);
     }, { passive: false });
     window.addEventListener('mousemove', move);
     window.addEventListener('touchmove', move, { passive: false });
