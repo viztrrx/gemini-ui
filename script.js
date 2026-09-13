@@ -399,6 +399,7 @@
             <div class="gpa-pause-card">
               <div class="gpa-pause-title">⏸ Paused</div>
               <div id="gpa-pause-stats" class="gpa-pause-stats"></div>
+              <div id="gpa-pause-options" class="gpa-pause-options"></div>
               <div class="gpa-row" style="justify-content:center; margin-top:10px;">
                 <button id="gpa-pause-resume" class="gpa-btn primary">▶ Resume</button>
                 <button id="gpa-pause-restart" class="gpa-btn">🔄 Restart</button>
@@ -956,6 +957,18 @@
       /* Login screen deliberately ignores the app theme — it's plain,
          corporate and boring by design, so it reads as an ordinary
          internal work portal rather than part of the console UI. */
+      /* Collapsed: the panel is just a backdrop for the round button, so
+         strip every HUD element that would otherwise clip or outline it. */
+      .gpa-panel.gpa-minimized {
+        clip-path: none !important;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        border-radius: 50% !important;
+        overflow: visible !important;
+      }
+      .gpa-panel.gpa-minimized .gpa-corner,
+      .gpa-panel.gpa-minimized .gpa-scanline { display: none !important; }
       /* While signed out the panel drops its angular HUD silhouette for
          plain rounded corners, and the HUD chrome (brackets, scanline) is
          hidden so the login reads as an ordinary window. */
@@ -970,21 +983,31 @@
       .gpa-panel.gpa-locked .gpa-login { border-radius: 14px; }
       /* Neutral, quiet button while signed out — no accent glow or rings. */
       .gpa-mini.gpa-mini-locked {
-        background: linear-gradient(180deg, #6b7684, #59626f) !important;
-        border: 1px solid #7d8794;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+        width: 42px; height: 42px; border-radius: 50% !important;
+        background: linear-gradient(180deg, #5b6b7f, #475464) !important;
+        border: 1px solid #6d7c8e !important;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.28) !important;
         animation: none !important;
-        color: #fff;
+        color: #fff; overflow: hidden;
       }
       .gpa-mini.gpa-mini-locked::before,
       .gpa-mini.gpa-mini-locked::after { display: none !important; }
       .gpa-login {
         position: absolute; inset: 0; z-index: 40;
         background: #f4f5f7;
-        display: flex; align-items: center; justify-content: center; padding: 16px;
+        display: flex; align-items: flex-start; justify-content: center; padding: 16px;
         font-family: "Segoe UI", Arial, Helvetica, sans-serif;
-        overflow-y: auto;
+        overflow-y: auto; overscroll-behavior: contain;
+        scrollbar-width: thin; scrollbar-color: #b9c0ca transparent;
       }
+      .gpa-login::-webkit-scrollbar { width: 8px; }
+      .gpa-login::-webkit-scrollbar-track { background: transparent; }
+      .gpa-login::-webkit-scrollbar-thumb {
+        background: #c3cad3; border-radius: 99px;
+        border: 2px solid #f4f5f7; background-clip: padding-box;
+      }
+      .gpa-login::-webkit-scrollbar-thumb:hover { background: #9aa3af; background-clip: padding-box; }
+      .gpa-login-card { margin: auto 0; }
       .gpa-login-card {
         width: 100%; max-width: 300px; background: #ffffff;
         border: 1px solid #d6d9de; border-radius: 2px; padding: 20px 18px;
@@ -1061,6 +1084,27 @@
         display: flex; justify-content: space-between; align-items: center; gap: 10px;
         padding: 5px 8px; background: ${t.field}; border: 1px solid ${t.border}; border-radius: 5px;
         font-size: 11px;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      }
+      .gpa-pause-options { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+      .gpa-pause-options:empty { display: none; }
+      .gpa-pause-optrow {
+        display: flex; justify-content: space-between; align-items: center; gap: 8px;
+        padding: 4px 8px; background: ${t.field}; border: 1px solid ${t.border}; border-radius: 5px;
+      }
+      .gpa-pause-optlabel {
+        color: ${t.sub}; text-transform: uppercase; letter-spacing: 0.5px; font-size: 9.5px;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      }
+      .gpa-pause-optselect {
+        background: ${t.panel}; color: ${t.accent}; border: 1px solid ${t.accent}55;
+        border-radius: 4px; font-size: 10px; font-weight: 700; padding: 3px 5px;
+        cursor: pointer; outline: none; max-width: 110px;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      }
+      .gpa-pause-optbtn {
+        background: ${t.panel}; color: ${t.accent}; border: 1px solid ${t.accent}55;
+        border-radius: 4px; font-size: 10px; font-weight: 700; padding: 3px 9px; cursor: pointer;
         font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
       }
       .gpa-pause-stat-label { color: ${t.sub}; text-transform: uppercase; letter-spacing: 0.5px; font-size: 9.5px; }
@@ -1301,6 +1345,7 @@
     // which would otherwise paint a panel-sized shadow around the collapsed
     // dot. Drop the class while minimized, restore it on expand if signed out.
     panel.classList.toggle('gpa-locked', !v && !signedInNow);
+    panel.classList.toggle('gpa-minimized', v);
     panel.style.width = v ? 'auto' : (PANEL_SIZES[panelSizeKey] || PANEL_SIZES.normal).w + 'px';
     panel.style.height = v ? 'auto' : (PANEL_SIZES[panelSizeKey] || PANEL_SIZES.normal).h + 'px';
     panel.style.background = v ? 'transparent' : THEMES[theme].panel;
@@ -2918,6 +2963,19 @@
   let gamePausedAt = 0;
   let isGamePaused = false;
 
+  // ---- Per-game options -----------------------------------------------------
+  // Each game can expose an `options` array; these render as dropdowns in the
+  // pause menu and persist under gpa_gameopt_<game>_<key>, so they ride along
+  // with profile save/sync like everything else.
+  function gameOptKey(game, key) { return `gpa_gameopt_${game}_${key}`; }
+  function getGameOpt(game, key, fallback) {
+    const v = localStorage.getItem(gameOptKey(game, key));
+    return v === null ? fallback : v;
+  }
+  function setGameOpt(game, key, value) {
+    localStorage.setItem(gameOptKey(game, key), String(value));
+  }
+
   function gameBestKey(id) { return `gpa_game_best_${id}`; }
   function getBest(id) { return parseInt(localStorage.getItem(gameBestKey(id)), 10) || 0; }
   function setBestIfHigher(id, score) {
@@ -3139,7 +3197,25 @@
     // Smooth movement: the snake still thinks in whole grid cells, but
     // rendering interpolates between each segment's previous and current
     // cell every animation frame, so it glides instead of teleporting.
-    const STEP_MS = 150;
+    const SKINS = {
+      accent: { name: 'Theme accent', body: () => THEMES[theme].accent, head: '#ffffff' },
+      emerald: { name: 'Emerald', body: () => '#22c55e', head: '#d1fae5' },
+      cyan: { name: 'Cyan', body: () => '#06b6d4', head: '#cffafe' },
+      magenta: { name: 'Magenta', body: () => '#ec4899', head: '#fce7f3' },
+      amber: { name: 'Amber', body: () => '#f59e0b', head: '#fef3c7' },
+      violet: { name: 'Violet', body: () => '#8b5cf6', head: '#ede9fe' },
+      mono: { name: 'Mono', body: () => '#e5e7eb', head: '#ffffff' }
+    };
+    const SPEEDS = { relaxed: 210, normal: 150, fast: 105, insane: 70 };
+
+    const skinKey = getGameOpt('snake', 'skin', 'accent');
+    const skin = SKINS[skinKey] || SKINS.accent;
+    const shape = getGameOpt('snake', 'shape', 'rounded');   // rounded | square | circle
+    const wrapMode = getGameOpt('snake', 'wrap', 'walls');   // walls | wrap
+    const showGrid = getGameOpt('snake', 'grid', 'off') === 'on';
+    const trailFade = getGameOpt('snake', 'fade', 'on') === 'on';
+    const STEP_MS = SPEEDS[getGameOpt('snake', 'speed', 'normal')] || 150;
+
     let snake, prevSnake, dir, nextDir, food, score, over, paused = false;
     let raf = null, lastStep = 0;
 
@@ -3166,15 +3242,34 @@
       ctx.closePath();
       ctx.fill();
     }
+    function paintCell(x, y, w, h) {
+      if (shape === 'circle') {
+        ctx.beginPath();
+        ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (shape === 'square') {
+        ctx.fillRect(x, y, w, h);
+      } else {
+        roundRect(x, y, w, h, 3);
+      }
+    }
     function draw(progress) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (showGrid) {
+        ctx.strokeStyle = THEMES[theme].border;
+        ctx.lineWidth = 1;
+        for (let i = 1; i < size; i++) {
+          ctx.beginPath(); ctx.moveTo(i * cell, 0); ctx.lineTo(i * cell, canvas.height); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0, i * cell); ctx.lineTo(canvas.width, i * cell); ctx.stroke();
+        }
+      }
       // Food gets a subtle pulse so the board feels alive between steps.
       const pulse = 1 + Math.sin(performance.now() / 220) * 0.08;
       const fs = (cell - 4) * pulse;
       ctx.fillStyle = '#ff5252';
-      roundRect(food.x * cell + (cell - fs) / 2, food.y * cell + (cell - fs) / 2, fs, fs, 3);
+      paintCell(food.x * cell + (cell - fs) / 2, food.y * cell + (cell - fs) / 2, fs, fs);
 
-      const accent = THEMES[theme].accent;
+      const bodyColor = skin.body();
       for (let i = snake.length - 1; i >= 0; i--) {
         const target = snake[i];
         const source = prevSnake[i] || target;
@@ -3184,16 +3279,23 @@
         const t = over ? 1 : (jumped ? 1 : progress);
         const px = (source.x + dx * t) * cell;
         const py = (source.y + dy * t) * cell;
-        ctx.fillStyle = i === 0 ? '#ffffff' : accent;
-        ctx.globalAlpha = i === 0 ? 1 : Math.max(0.45, 1 - i / (snake.length + 4));
-        roundRect(px + 1, py + 1, cell - 2, cell - 2, 3);
+        ctx.fillStyle = i === 0 ? skin.head : bodyColor;
+        ctx.globalAlpha = (i === 0 || !trailFade) ? 1 : Math.max(0.45, 1 - i / (snake.length + 4));
+        paintCell(px + 1, py + 1, cell - 2, cell - 2);
       }
       ctx.globalAlpha = 1;
     }
     function step() {
       dir = nextDir;
       const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
-      if (head.x < 0 || head.x >= size || head.y < 0 || head.y >= size || snake.some((s) => s.x === head.x && s.y === head.y)) {
+      if (wrapMode === 'wrap') {
+        // Pass through walls and come out the other side.
+        head.x = (head.x + size) % size;
+        head.y = (head.y + size) % size;
+      }
+      const hitWall = wrapMode !== 'wrap' &&
+        (head.x < 0 || head.x >= size || head.y < 0 || head.y >= size);
+      if (hitWall || snake.some((s) => s.x === head.x && s.y === head.y)) {
         over = true;
         const best = setBestIfHigher('snake', score);
         status.textContent = `Game over! Score: ${score}   Best: ${best}`;
@@ -3255,7 +3357,34 @@
       stats: () => [
         { label: 'Score', value: score },
         { label: 'Length', value: snake.length },
+        { label: 'Mode', value: wrapMode === 'wrap' ? 'Wrap walls' : 'Solid walls' },
         { label: 'Status', value: over ? 'Game over' : 'Alive' }
+      ],
+      options: () => [
+        { key: 'skin', label: 'Color', value: skinKey, restart: true,
+          choices: Object.keys(SKINS).map((k) => ({ value: k, label: SKINS[k].name })) },
+        { key: 'shape', label: 'Style', value: shape, restart: true,
+          choices: [
+            { value: 'rounded', label: 'Rounded' },
+            { value: 'square', label: 'Blocky' },
+            { value: 'circle', label: 'Beads' }
+          ] },
+        { key: 'speed', label: 'Speed', value: getGameOpt('snake', 'speed', 'normal'), restart: true,
+          choices: [
+            { value: 'relaxed', label: 'Relaxed' },
+            { value: 'normal', label: 'Normal' },
+            { value: 'fast', label: 'Fast' },
+            { value: 'insane', label: 'Insane' }
+          ] },
+        { key: 'wrap', label: 'Walls', value: wrapMode, restart: true,
+          choices: [
+            { value: 'walls', label: 'Solid' },
+            { value: 'wrap', label: 'Wrap around' }
+          ] },
+        { key: 'grid', label: 'Grid', value: showGrid ? 'on' : 'off', restart: true,
+          choices: [{ value: 'off', label: 'Hidden' }, { value: 'on', label: 'Shown' }] },
+        { key: 'fade', label: 'Tail fade', value: trailFade ? 'on' : 'off', restart: true,
+          choices: [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }] }
       ]
     };
   }
@@ -3762,7 +3891,9 @@
 
   // --- Minesweeper ---
   function initMinesweeper(root) {
-    const SIZE = 8, MINES = 10;
+    const MINE_DIFF = { easy: 8, normal: 10, hard: 14, brutal: 18 };
+    const mineDiff = getGameOpt('minesweeper', 'difficulty', 'normal');
+    const SIZE = 8, MINES = MINE_DIFF[mineDiff] || 10;
     let board, revealed, flagged, over, firstClick;
 
     const status = document.createElement('div');
@@ -3876,6 +4007,15 @@
         { label: 'Flags placed', value: flagged.filter(Boolean).length },
         { label: 'Mines', value: MINES },
         { label: 'Status', value: over ? 'Finished' : 'In play' }
+      ],
+      options: () => [
+        { key: 'difficulty', label: 'Mine count', value: mineDiff, restart: true,
+          choices: [
+            { value: 'easy', label: 'Easy (8)' },
+            { value: 'normal', label: 'Normal (10)' },
+            { value: 'hard', label: 'Hard (14)' },
+            { value: 'brutal', label: 'Brutal (18)' }
+          ] }
       ]
     };
   }
@@ -3966,7 +4106,9 @@
     const status = document.createElement('div');
     status.className = 'gpa-game-status';
 
-    const paddleW = 44, paddleH = 6;
+    const PADDLE_W = { wide: 60, normal: 44, narrow: 30 };
+    const breakoutPaddle = getGameOpt('breakout', 'paddle', 'normal');
+    const paddleW = PADDLE_W[breakoutPaddle] || 44, paddleH = 6;
     let paddleX = W / 2 - paddleW / 2;
     let ballX, ballY, ballVX, ballVY, bricks, lives, score, over, raf, paused = false;
     const rows = 4, cols = 7, brickW = W / cols, brickH = 10, brickTop = 20;
@@ -4064,6 +4206,14 @@
         { label: 'Score', value: score },
         { label: 'Lives', value: lives },
         { label: 'Bricks left', value: bricks.filter((b) => b.alive).length }
+      ],
+      options: () => [
+        { key: 'paddle', label: 'Paddle size', value: breakoutPaddle, restart: true,
+          choices: [
+            { value: 'wide', label: 'Wide' },
+            { value: 'normal', label: 'Normal' },
+            { value: 'narrow', label: 'Narrow' }
+          ] }
       ]
     };
   }
@@ -4082,7 +4232,16 @@
     // Tuned to be actually playable: gentler gravity, a softer flap, a wider
     // gap, and a terminal-velocity cap so the bird never plummets faster
     // than you can react to.
-    const gravity = 0.16, flapV = -4.0, pipeGap = 96, pipeW = 30, pipeSpeed = 1.25;
+    const FLAPPY_DIFF = {
+      easy:   { gravity: 0.13, flapV: -3.7, pipeGap: 112, pipeSpeed: 1.05 },
+      normal: { gravity: 0.16, flapV: -4.0, pipeGap: 96,  pipeSpeed: 1.25 },
+      hard:   { gravity: 0.20, flapV: -4.4, pipeGap: 82,  pipeSpeed: 1.6 }
+    };
+    const flappyDiff = getGameOpt('flappy', 'difficulty', 'normal');
+    const fd = FLAPPY_DIFF[flappyDiff] || FLAPPY_DIFF.normal;
+    const flappyBird = getGameOpt('flappy', 'bird', 'white');
+    const BIRD_COLORS = { white: '#ffffff', gold: '#f5c518', mint: '#34d399', rose: '#fb7185' };
+    const gravity = fd.gravity, flapV = fd.flapV, pipeGap = fd.pipeGap, pipeW = 30, pipeSpeed = fd.pipeSpeed;
     const maxFallV = 4.0;
 
     function spawnPipe() {
@@ -4104,7 +4263,7 @@
         ctx.fillRect(p.x, 0, pipeW, p.gapY);
         ctx.fillRect(p.x, p.gapY + pipeGap, pipeW, H - (p.gapY + pipeGap));
       });
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle = BIRD_COLORS[flappyBird] || '#ffffff';
       ctx.beginPath();
       ctx.arc(40, birdY, 6, 0, Math.PI * 2);
       ctx.fill();
@@ -4159,7 +4318,23 @@
       stats: () => [
         { label: 'Score', value: score },
         { label: 'Pipes passed', value: pipes.filter((p) => p.passed).length },
+        { label: 'Difficulty', value: flappyDiff },
         { label: 'Status', value: over ? 'Game over' : (started ? 'Flying' : 'Not started') }
+      ],
+      options: () => [
+        { key: 'difficulty', label: 'Difficulty', value: flappyDiff, restart: true,
+          choices: [
+            { value: 'easy', label: 'Easy' },
+            { value: 'normal', label: 'Normal' },
+            { value: 'hard', label: 'Hard' }
+          ] },
+        { key: 'bird', label: 'Bird color', value: flappyBird, restart: true,
+          choices: [
+            { value: 'white', label: 'White' },
+            { value: 'gold', label: 'Gold' },
+            { value: 'mint', label: 'Mint' },
+            { value: 'rose', label: 'Rose' }
+          ] }
       ]
     };
   }
@@ -4307,7 +4482,12 @@
       T: [[[0,1,0],[1,1,1],[0,0,0]], [[0,1,0],[0,1,1],[0,1,0]], [[0,0,0],[1,1,1],[0,1,0]], [[0,1,0],[1,1,0],[0,1,0]]],
       Z: [[[1,1,0],[0,1,1],[0,0,0]], [[0,0,1],[0,1,1],[0,1,0]]]
     };
-    const COLORS = { I: '#4da3ff', J: '#3b5bdb', L: '#f59f00', O: '#f5c518', S: '#22c55e', T: '#8b5cf6', Z: '#e5453a' };
+    const PALETTES = {
+      classic: { I: '#4da3ff', J: '#3b5bdb', L: '#f59f00', O: '#f5c518', S: '#22c55e', T: '#8b5cf6', Z: '#e5453a' },
+      pastel: { I: '#a5d8ff', J: '#bac8ff', L: '#ffd8a8', O: '#ffec99', S: '#b2f2bb', T: '#d0bfff', Z: '#ffc9c9' },
+      neon: { I: '#00e5ff', J: '#2979ff', L: '#ff9100', O: '#ffea00', S: '#00e676', T: '#d500f9', Z: '#ff1744' },
+      mono: { I: '#e5e7eb', J: '#cbd5e1', L: '#94a3b8', O: '#f1f5f9', S: '#b0bec5', T: '#cfd8dc', Z: '#9aa5b1' }
+    };
     const TYPES = Object.keys(SHAPES);
 
     const canvas = document.createElement('canvas');
@@ -4317,6 +4497,9 @@
     const status = document.createElement('div');
     status.className = 'gpa-game-status';
 
+    const TETRIS_START = { chill: 800, normal: 600, brisk: 420, turbo: 260 };
+    const tetrisPace = getGameOpt('tetris', 'pace', 'normal');
+    const tetrisPalette = getGameOpt('tetris', 'palette', 'classic');
     let board, current, score, level, linesCleared, over, dropTimer, dropInterval, paused = false;
 
     function emptyBoard() { return Array.from({ length: ROWS }, () => Array(COLS).fill(null)); }
@@ -4388,10 +4571,10 @@
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-        if (board[r][c]) { ctx.fillStyle = COLORS[board[r][c]]; ctx.fillRect(c * CELL + 1, r * CELL + 1, CELL - 2, CELL - 2); }
+        if (board[r][c]) { ctx.fillStyle = (PALETTES[tetrisPalette] || PALETTES.classic)[board[r][c]]; ctx.fillRect(c * CELL + 1, r * CELL + 1, CELL - 2, CELL - 2); }
       }
       if (current && !over) {
-        ctx.fillStyle = COLORS[current.type];
+        ctx.fillStyle = (PALETTES[tetrisPalette] || PALETTES.classic)[current.type];
         current.shape.forEach((row, r) => row.forEach((v, c) => {
           if (v) { const by = current.y + r; if (by >= 0) ctx.fillRect((current.x + c) * CELL + 1, by * CELL + 1, CELL - 2, CELL - 2); }
         }));
@@ -4418,7 +4601,7 @@
     }
     function reset() {
       board = emptyBoard(); score = 0; level = 1; linesCleared = 0; over = false;
-      dropInterval = 600;
+      dropInterval = TETRIS_START[tetrisPace] || 600;
       spawn();
       status.textContent = `Score: 0   Level: 1   Best: ${getBest('tetris')}`;
       draw();
@@ -4444,6 +4627,22 @@
         { label: 'Level', value: level },
         { label: 'Lines cleared', value: linesCleared },
         { label: 'Status', value: over ? 'Game over' : 'In play' }
+      ],
+      options: () => [
+        { key: 'palette', label: 'Colors', value: tetrisPalette, restart: true,
+          choices: [
+            { value: 'classic', label: 'Classic' },
+            { value: 'pastel', label: 'Pastel' },
+            { value: 'neon', label: 'Neon' },
+            { value: 'mono', label: 'Mono' }
+          ] },
+        { key: 'pace', label: 'Start pace', value: tetrisPace, restart: true,
+          choices: [
+            { value: 'chill', label: 'Chill' },
+            { value: 'normal', label: 'Normal' },
+            { value: 'brisk', label: 'Brisk' },
+            { value: 'turbo', label: 'Turbo' }
+          ] }
       ]
     };
   }
@@ -4771,6 +4970,58 @@
     pauseStatsEl.innerHTML = rows.map((r) =>
       `<div class="gpa-pause-stat"><span class="gpa-pause-stat-label">${escapeHtml(r.label)}</span><span class="gpa-pause-stat-value">${escapeHtml(String(r.value))}</span></div>`
     ).join('');
+    renderGameOptions();
+  }
+
+  // Renders whatever options the active game exposes. Changing one applies
+  // live where the game supports it, or on the next restart otherwise.
+  function renderGameOptions() {
+    const optsEl = panel.querySelector('#gpa-pause-options');
+    if (!optsEl) return;
+    optsEl.innerHTML = '';
+    const defs = (activeGameControls && typeof activeGameControls.options === 'function')
+      ? (activeGameControls.options() || [])
+      : [];
+    if (!defs.length) return;
+
+    defs.forEach((def) => {
+      const row = document.createElement('div');
+      row.className = 'gpa-pause-optrow';
+      const label = document.createElement('span');
+      label.className = 'gpa-pause-optlabel';
+      label.textContent = def.label;
+      row.appendChild(label);
+
+      const select = document.createElement('select');
+      select.className = 'gpa-pause-optselect';
+      def.choices.forEach((c) => {
+        const opt = document.createElement('option');
+        opt.value = c.value;
+        opt.textContent = c.label;
+        if (String(c.value) === String(def.value)) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.addEventListener('change', () => {
+        setGameOpt(currentGameId, def.key, select.value);
+        if (typeof def.onChange === 'function') def.onChange(select.value);
+        if (def.restart) loadGame(currentGameId);
+      });
+      row.appendChild(select);
+      optsEl.appendChild(row);
+    });
+
+    const applyRow = document.createElement('div');
+    applyRow.className = 'gpa-pause-optrow';
+    const note = document.createElement('span');
+    note.className = 'gpa-pause-optlabel';
+    note.textContent = 'Apply options';
+    const applyBtn = document.createElement('button');
+    applyBtn.className = 'gpa-pause-optbtn';
+    applyBtn.textContent = 'Restart now';
+    applyBtn.addEventListener('click', () => loadGame(currentGameId));
+    applyRow.appendChild(note);
+    applyRow.appendChild(applyBtn);
+    optsEl.appendChild(applyRow);
   }
 
   function pauseGame() {
