@@ -127,10 +127,8 @@
   //     { name: 'Another Track.mp3', url: 'https://raw.githubusercontent.com/USER/REPO/main/music/another.mp3' },
   //   ];
   const PRELOADED_TRACKS = [
-  { name: 'me gusta todo de ti.mp3', url: 'https://raw.githubusercontent.com/viztrrx/gemini-ui/main/music/me-gusta-todo-de-ti.mp3' },
-  { name: 'tal vez.mp3', url: 'https://raw.githubusercontent.com/viztrrx/gemini-ui/main/music/tal-vez.mp3' },
-];
-
+    { name: 'Me Gusta Todo De Ti', url: 'https://raw.githubusercontent.com/viztrrx/gemini-ui/refs/heads/music/me-gusta-todo-de-ti.mp3' }
+  ];
 
   // Prevent duplicate instances — toggle instead of re-injecting
   const existing = document.getElementById('gpa-root-host');
@@ -355,9 +353,23 @@
           <button class="gpa-btn game-btn" data-game="sudoku">Sudoku</button>
         </div>
         <div class="gpa-row" style="margin-top:6px;">
-          <button id="gpa-game-restart" class="gpa-btn">🔄 Restart Game</button>
+          <button id="gpa-game-restart" class="gpa-btn">🔄 Restart</button>
+          <button id="gpa-game-pause" class="gpa-btn">⏸ Pause</button>
+          <button id="gpa-game-fullscreen" class="gpa-btn">⛶ Fullscreen</button>
         </div>
-        <div id="gpa-game-viewport" class="gpa-game-viewport"></div>
+        <div id="gpa-game-stage" class="gpa-game-stage">
+          <div id="gpa-game-viewport" class="gpa-game-viewport"></div>
+          <div id="gpa-game-pausemenu" class="gpa-pause-menu" style="display:none;">
+            <div class="gpa-pause-card">
+              <div class="gpa-pause-title">⏸ Paused</div>
+              <div id="gpa-pause-stats" class="gpa-pause-stats"></div>
+              <div class="gpa-row" style="justify-content:center; margin-top:10px;">
+                <button id="gpa-pause-resume" class="gpa-btn primary">▶ Resume</button>
+                <button id="gpa-pause-restart" class="gpa-btn">🔄 Restart</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="gpa-pane" data-pane="theme">
@@ -845,10 +857,50 @@
       .gpa-local-player { margin-top: 10px; padding-top: 8px; border-top: 1px solid ${t.border}; }
       #gpa-local-nowplaying { text-align: center; margin-bottom: 6px; font-weight: 700; color: ${t.accent}; }
       .game-btn { flex: 1 1 auto; min-width: 64px; font-size: 9.5px; }
+      .gpa-game-stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
       .gpa-game-viewport {
         flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px;
         display: flex; flex-direction: column; align-items: center; gap: 8px;
         padding: 6px 2px;
+      }
+      .gpa-pause-menu {
+        position: absolute; inset: 0; z-index: 10;
+        background: ${t.bg}e8; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+        display: flex; align-items: center; justify-content: center; padding: 10px;
+        animation: gpa-pane-in 0.18s ease both;
+      }
+      .gpa-pause-card {
+        width: 100%; max-width: 260px; padding: 14px;
+        background: ${t.panel}; border: 1px solid ${t.accent}66;
+        clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        box-shadow: 0 0 26px ${t.accent}44;
+      }
+      .gpa-pause-title {
+        text-align: center; font-size: 13px; font-weight: 800; letter-spacing: 1.2px;
+        text-transform: uppercase; color: ${t.accent}; margin-bottom: 10px;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      }
+      .gpa-pause-stats { display: flex; flex-direction: column; gap: 5px; }
+      .gpa-pause-stat {
+        display: flex; justify-content: space-between; align-items: center; gap: 10px;
+        padding: 5px 8px; background: ${t.field}; border: 1px solid ${t.border}; border-radius: 5px;
+        font-size: 11px;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      }
+      .gpa-pause-stat-label { color: ${t.sub}; text-transform: uppercase; letter-spacing: 0.5px; font-size: 9.5px; }
+      .gpa-pause-stat-value { color: ${t.accent}; font-weight: 800; }
+      /* Fullscreen: the stage becomes the whole screen, game centered on it. */
+      .gpa-game-stage:fullscreen,
+      .gpa-game-stage:-webkit-full-screen {
+        background: ${t.bg}; padding: 20px;
+      }
+      .gpa-game-stage:fullscreen .gpa-game-viewport,
+      .gpa-game-stage:-webkit-full-screen .gpa-game-viewport {
+        justify-content: center;
+      }
+      .gpa-game-stage:fullscreen .game-canvas,
+      .gpa-game-stage:-webkit-full-screen .game-canvas {
+        transform: scale(1.9); transform-origin: center; image-rendering: pixelated;
       }
       .gpa-game-status {
         font-size: 12px; font-weight: 700; color: ${t.text}; text-align: center;
@@ -2402,9 +2454,17 @@
   askInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 
   // ---- Games tab -----------------------------------------------------------
+  // Game loaders may return either a plain cleanup function (older/simple
+  // games) or a controls object: { cleanup, pause, resume, stats }. `stats`
+  // returns an array of {label, value} shown in the pause menu, so each game
+  // can surface whatever actually matters for it (score, rounds, lives…).
   const gameViewport = panel.querySelector('#gpa-game-viewport');
   const gameBtns = panel.querySelectorAll('.game-btn');
-  let activeGameCleanup = null;
+  let activeGameControls = null;
+  let gameStartedAt = 0;
+  let gamePausedTotal = 0;
+  let gamePausedAt = 0;
+  let isGamePaused = false;
 
   function gameBestKey(id) { return `gpa_game_best_${id}`; }
   function getBest(id) { return parseInt(localStorage.getItem(gameBestKey(id)), 10) || 0; }
@@ -2413,12 +2473,22 @@
     if (score > best) { localStorage.setItem(gameBestKey(id), String(score)); return score; }
     return best;
   }
+  function gameElapsedSeconds() {
+    if (!gameStartedAt) return 0;
+    const end = isGamePaused ? gamePausedAt : Date.now();
+    return Math.max(0, Math.floor((end - gameStartedAt - gamePausedTotal) / 1000));
+  }
+  function formatElapsed(sec) {
+    const m = Math.floor(sec / 60);
+    const s = (sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
 
   function stopActiveGame() {
-    if (activeGameCleanup) {
-      try { activeGameCleanup(); } catch (e) { /* ignore cleanup errors */ }
-      activeGameCleanup = null;
+    if (activeGameControls && typeof activeGameControls.cleanup === 'function') {
+      try { activeGameControls.cleanup(); } catch (e) { /* ignore cleanup errors */ }
     }
+    activeGameControls = null;
   }
 
   // --- Tic-Tac-Toe (vs a simple heuristic AI) ---
@@ -2488,6 +2558,13 @@
     root.appendChild(boardEl);
     root.appendChild(resetBtn);
     render();
+
+    return {
+      stats: () => [
+        { label: 'Moves made', value: board.filter(Boolean).length },
+        { label: 'Status', value: over ? 'Finished' : 'Your move' }
+      ]
+    };
   }
 
   // --- Rock Paper Scissors ---
@@ -2529,6 +2606,14 @@
     root.appendChild(status);
     root.appendChild(row);
     root.appendChild(scoreEl);
+
+    return {
+      stats: () => [
+        { label: 'Wins', value: wins },
+        { label: 'Losses', value: losses },
+        { label: 'Ties', value: ties }
+      ]
+    };
   }
 
   // --- Memory Match ---
@@ -2579,6 +2664,13 @@
     root.appendChild(status);
     root.appendChild(grid);
     render();
+
+    return {
+      stats: () => [
+        { label: 'Moves', value: moves },
+        { label: 'Pairs found', value: `${matched.size / 2} / ${emojis.length}` }
+      ]
+    };
   }
 
   // --- Snake (canvas) ---
@@ -2658,13 +2750,22 @@
     root.appendChild(canvas);
     root.appendChild(hint);
 
-    return () => { clearInterval(timer); window.removeEventListener('keydown', onKey); };
+    return {
+      cleanup: () => { clearInterval(timer); window.removeEventListener('keydown', onKey); },
+      pause: () => { clearInterval(timer); timer = null; },
+      resume: () => { if (!timer && !over) timer = setInterval(tick, 140); },
+      stats: () => [
+        { label: 'Score', value: score },
+        { label: 'Length', value: snake.length },
+        { label: 'Status', value: over ? 'Game over' : 'Alive' }
+      ]
+    };
   }
 
   // --- 2048 ---
   function init2048(root) {
     const N = 4;
-    let grid, score, over;
+    let grid, score, over, paused = false;
     const status = document.createElement('div');
     status.className = 'gpa-game-status';
     const gridEl = document.createElement('div');
@@ -2717,7 +2818,7 @@
       return true;
     }
     function move(dir) {
-      if (over) return;
+      if (over || paused) return;
       const g = grid.map((row) => [...row]);
       let transformed = g;
       if (dir === 'up' || dir === 'down') transformed = transpose(transformed);
@@ -2760,7 +2861,19 @@
     root.appendChild(gridEl);
     root.appendChild(hint);
 
-    return () => window.removeEventListener('keydown', onKey);
+    return {
+      cleanup: () => window.removeEventListener('keydown', onKey),
+      pause: () => { paused = true; },
+      resume: () => { paused = false; },
+      stats: () => {
+        const highestTile = Math.max(...grid.flat());
+        return [
+          { label: 'Score', value: score },
+          { label: 'Highest tile', value: highestTile },
+          { label: 'Status', value: over ? 'Game over' : 'In play' }
+        ];
+      }
+    };
   }
 
   // --- Whack-a-Mole ---
@@ -2818,7 +2931,20 @@
     popMole();
     countdown = setInterval(tickCountdown, 1000);
 
-    return () => { clearTimeout(moleTimer); clearInterval(countdown); };
+    return {
+      cleanup: () => { clearTimeout(moleTimer); clearInterval(countdown); },
+      pause: () => { clearTimeout(moleTimer); clearInterval(countdown); moleTimer = null; countdown = null; },
+      resume: () => {
+        if (over) return;
+        if (!moleTimer) popMole();
+        if (!countdown) countdown = setInterval(tickCountdown, 1000);
+      },
+      stats: () => [
+        { label: 'Score', value: score },
+        { label: 'Time left', value: `${timeLeft}s` },
+        { label: 'Status', value: over ? "Time's up" : 'In play' }
+      ]
+    };
   }
 
   // --- Guess the Number ---
@@ -2879,6 +3005,17 @@
     root.appendChild(status);
     root.appendChild(row);
     root.appendChild(resetBtn);
+
+    return {
+      stats: () => {
+        const bestTries = parseInt(localStorage.getItem('gpa_game_best_guess_tries'), 10);
+        return [
+          { label: 'Tries this round', value: tries },
+          { label: 'Fewest ever', value: isNaN(bestTries) ? '—' : bestTries },
+          { label: 'Status', value: over ? 'Solved' : 'Guessing' }
+        ];
+      }
+    };
   }
 
   // --- Hangman ---
@@ -2943,6 +3080,14 @@
     root.appendChild(wordEl);
     root.appendChild(lettersEl);
     root.appendChild(resetBtn);
+
+    return {
+      stats: () => [
+        { label: 'Guesses left', value: maxWrong - wrongCount },
+        { label: 'Letters tried', value: guessedLetters.size },
+        { label: 'Status', value: over ? 'Finished' : 'In play' }
+      ]
+    };
   }
 
   // --- Wordle ---
@@ -3018,6 +3163,13 @@
     root.appendChild(grid);
     root.appendChild(row);
     render();
+
+    return {
+      stats: () => [
+        { label: 'Guesses used', value: `${guesses.length} / 6` },
+        { label: 'Status', value: over ? 'Finished' : 'In play' }
+      ]
+    };
   }
 
   // --- Connect Four (vs a simple AI) ---
@@ -3097,6 +3249,17 @@
     root.appendChild(status);
     root.appendChild(boardEl);
     root.appendChild(resetBtn);
+
+    return {
+      stats: () => {
+        let pieces = 0;
+        board.forEach((row) => row.forEach((cell) => { if (cell) pieces++; }));
+        return [
+          { label: 'Pieces played', value: pieces },
+          { label: 'Turn', value: over ? 'Finished' : (turn === 'red' ? 'Yours' : 'AI') }
+        ];
+      }
+    };
   }
 
   // --- Minesweeper ---
@@ -3208,6 +3371,15 @@
     root.appendChild(status);
     root.appendChild(grid);
     root.appendChild(resetBtn);
+
+    return {
+      stats: () => [
+        { label: 'Revealed', value: `${revealed.filter(Boolean).length} / ${SIZE * SIZE - MINES}` },
+        { label: 'Flags placed', value: flagged.filter(Boolean).length },
+        { label: 'Mines', value: MINES },
+        { label: 'Status', value: over ? 'Finished' : 'In play' }
+      ]
+    };
   }
 
   // --- Simon ---
@@ -3273,6 +3445,17 @@
     root.appendChild(status);
     root.appendChild(pad);
     root.appendChild(startBtn);
+
+    return {
+      // Pausing mid-sequence would desync the playback, so it just stops
+      // accepting input; resuming replays the current sequence from the top.
+      pause: () => { accepting = false; },
+      resume: () => { if (!over && sequence.length) playSequence(); },
+      stats: () => [
+        { label: 'Round', value: sequence.length || '—' },
+        { label: 'Status', value: over ? 'Game over' : (sequence.length ? 'In play' : 'Not started') }
+      ]
+    };
   }
 
   // --- Breakout ---
@@ -3287,7 +3470,7 @@
 
     const paddleW = 44, paddleH = 6;
     let paddleX = W / 2 - paddleW / 2;
-    let ballX, ballY, ballVX, ballVY, bricks, lives, score, over, raf;
+    let ballX, ballY, ballVX, ballVY, bricks, lives, score, over, raf, paused = false;
     const rows = 4, cols = 7, brickW = W / cols, brickH = 10, brickTop = 20;
 
     function resetBall() { ballX = W / 2; ballY = H - 30; ballVX = 1.6 * (Math.random() < 0.5 ? -1 : 1); ballVY = -2; }
@@ -3314,7 +3497,7 @@
       ctx.fill();
     }
     function step() {
-      if (over) return;
+      if (over || paused) return;
       ballX += ballVX; ballY += ballVY;
       if (ballX < 4 || ballX > W - 4) ballVX *= -1;
       if (ballY < 4) ballVY *= -1;
@@ -3372,7 +3555,16 @@
     root.appendChild(canvas);
     root.appendChild(hint);
 
-    return () => { cancelAnimationFrame(raf); canvas.removeEventListener('mousemove', onMove); canvas.removeEventListener('touchmove', onMove); };
+    return {
+      cleanup: () => { cancelAnimationFrame(raf); canvas.removeEventListener('mousemove', onMove); canvas.removeEventListener('touchmove', onMove); },
+      pause: () => { cancelAnimationFrame(raf); paused = true; },
+      resume: () => { paused = false; if (!over) raf = requestAnimationFrame(step); },
+      stats: () => [
+        { label: 'Score', value: score },
+        { label: 'Lives', value: lives },
+        { label: 'Bricks left', value: bricks.filter((b) => b.alive).length }
+      ]
+    };
   }
 
   // --- Flappy ---
@@ -3385,7 +3577,7 @@
     const status = document.createElement('div');
     status.className = 'gpa-game-status';
 
-    let birdY, birdV, pipes, score, over, started, raf;
+    let birdY, birdV, pipes, score, over, started, raf, paused = false;
     const gravity = 0.3, flapV = -5.2, pipeGap = 80, pipeW = 30, pipeSpeed = 1.6;
 
     function spawnPipe() {
@@ -3418,7 +3610,7 @@
       status.textContent = `Game over! Score: ${score}   Best: ${best}   (click to retry)`;
     }
     function step() {
-      if (over || !started) return;
+      if (over || !started || paused) return;
       birdV += gravity;
       birdY += birdV;
       pipes.forEach((p) => { p.x -= pipeSpeed; });
@@ -3454,7 +3646,16 @@
     root.appendChild(canvas);
     root.appendChild(hint);
 
-    return () => { cancelAnimationFrame(raf); canvas.removeEventListener('click', flap); };
+    return {
+      cleanup: () => { cancelAnimationFrame(raf); canvas.removeEventListener('click', flap); },
+      pause: () => { cancelAnimationFrame(raf); paused = true; },
+      resume: () => { paused = false; if (!over && started) raf = requestAnimationFrame(step); },
+      stats: () => [
+        { label: 'Score', value: score },
+        { label: 'Pipes passed', value: pipes.filter((p) => p.passed).length },
+        { label: 'Status', value: over ? 'Game over' : (started ? 'Flying' : 'Not started') }
+      ]
+    };
   }
 
   // --- Word Scramble ---
@@ -3516,6 +3717,13 @@
     root.appendChild(scrambledEl);
     root.appendChild(row);
     root.appendChild(row2);
+
+    return {
+      stats: () => [
+        { label: 'Word length', value: word.length },
+        { label: 'Status', value: over ? 'Solved' : 'Unsolved' }
+      ]
+    };
   }
 
   // --- Reaction Time Test ---
@@ -3564,7 +3772,21 @@
     root.appendChild(status);
     root.appendChild(box);
 
-    return () => clearTimeout(timeout);
+    return {
+      cleanup: () => clearTimeout(timeout),
+      // Pausing mid-round would make the measurement meaningless, so
+      // pausing just resets to idle and the next click starts fresh.
+      pause: () => {
+        clearTimeout(timeout);
+        state = 'idle';
+        box.className = 'reaction-box waiting';
+        box.textContent = 'Click to start';
+      },
+      stats: () => {
+        const best = parseInt(localStorage.getItem('gpa_game_best_reaction_ms'), 10);
+        return [{ label: 'Best reaction', value: isNaN(best) ? '—' : `${best}ms` }];
+      }
+    };
   }
 
   // --- Tetris ---
@@ -3589,7 +3811,7 @@
     const status = document.createElement('div');
     status.className = 'gpa-game-status';
 
-    let board, current, score, level, linesCleared, over, dropTimer, dropInterval;
+    let board, current, score, level, linesCleared, over, dropTimer, dropInterval, paused = false;
 
     function emptyBoard() { return Array.from({ length: ROWS }, () => Array(COLS).fill(null)); }
     function randomPiece() {
@@ -3679,7 +3901,7 @@
       dropTimer = setTimeout(() => { tick(); if (!over) scheduleTick(); }, dropInterval);
     }
     function onKey(e) {
-      if (over) return;
+      if (over || paused) return;
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' '].includes(e.key)) e.preventDefault();
       if (e.key === 'ArrowLeft') move(-1);
       else if (e.key === 'ArrowRight') move(1);
@@ -3707,7 +3929,17 @@
     root.appendChild(canvas);
     root.appendChild(hint);
 
-    return () => { clearTimeout(dropTimer); window.removeEventListener('keydown', onKey); };
+    return {
+      cleanup: () => { clearTimeout(dropTimer); window.removeEventListener('keydown', onKey); },
+      pause: () => { clearTimeout(dropTimer); dropTimer = null; paused = true; },
+      resume: () => { paused = false; if (!over) scheduleTick(); },
+      stats: () => [
+        { label: 'Score', value: score },
+        { label: 'Level', value: level },
+        { label: 'Lines cleared', value: linesCleared },
+        { label: 'Status', value: over ? 'Game over' : 'In play' }
+      ]
+    };
   }
 
   // --- Checkers (vs a simple AI) ---
@@ -3834,6 +4066,14 @@
     root.appendChild(status);
     root.appendChild(boardEl);
     root.appendChild(resetBtn);
+
+    return {
+      stats: () => [
+        { label: 'Your pieces', value: countPieces('red') },
+        { label: 'AI pieces', value: countPieces('black') },
+        { label: 'Turn', value: over ? 'Finished' : (turn === 'red' ? 'Yours' : 'AI') }
+      ]
+    };
   }
 
   // --- Sudoku ---
@@ -3963,6 +4203,24 @@
     root.appendChild(grid);
     root.appendChild(numRow);
     root.appendChild(resetBtn);
+
+    return {
+      stats: () => {
+        let filled = 0, blanks = 0, conflictCount = 0;
+        for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
+          if (puzzle[r][c]) {
+            filled++;
+            if (!given[r][c] && conflicts(puzzle, r, c, puzzle[r][c])) conflictCount++;
+          } else blanks++;
+        }
+        return [
+          { label: 'Filled', value: `${filled} / 81` },
+          { label: 'Blanks left', value: blanks },
+          { label: 'Conflicts', value: conflictCount },
+          { label: 'Status', value: over ? 'Solved' : 'In progress' }
+        ];
+      }
+    };
   }
 
   const GAME_LOADERS = {
@@ -3974,17 +4232,112 @@
     tetris: initTetris, checkers: initCheckers, sudoku: initSudoku
   };
 
+  const GAME_LABELS = {
+    ttt: 'Tic-Tac-Toe', rps: 'Rock Paper Scissors', memory: 'Memory Match', snake: 'Snake',
+    '2048': '2048', whack: 'Whack-a-Mole', guess: 'Guess the Number', hangman: 'Hangman',
+    wordle: 'Wordle', connect4: 'Connect 4', minesweeper: 'Minesweeper', simon: 'Simon',
+    breakout: 'Breakout', flappy: 'Flappy', scramble: 'Word Scramble', reaction: 'Reaction Test',
+    tetris: 'Tetris', checkers: 'Checkers', sudoku: 'Sudoku'
+  };
+
+  const gameStage = panel.querySelector('#gpa-game-stage');
+  const pauseMenu = panel.querySelector('#gpa-game-pausemenu');
+  const pauseStatsEl = panel.querySelector('#gpa-pause-stats');
+  const pauseBtn = panel.querySelector('#gpa-game-pause');
+  const fullscreenBtn = panel.querySelector('#gpa-game-fullscreen');
+
   let currentGameId = 'ttt';
+
+  function renderPauseStats() {
+    const rows = [];
+    rows.push({ label: 'Game', value: GAME_LABELS[currentGameId] || currentGameId });
+    rows.push({ label: 'Time played', value: formatElapsed(gameElapsedSeconds()) });
+    // Per-game stats, if the game exposes them.
+    if (activeGameControls && typeof activeGameControls.stats === 'function') {
+      try {
+        const custom = activeGameControls.stats() || [];
+        custom.forEach((s) => rows.push(s));
+      } catch (e) { /* a broken stats fn shouldn't break the pause menu */ }
+    }
+    const best = getBest(currentGameId);
+    if (best) rows.push({ label: 'Best score', value: String(best) });
+
+    pauseStatsEl.innerHTML = rows.map((r) =>
+      `<div class="gpa-pause-stat"><span class="gpa-pause-stat-label">${escapeHtml(r.label)}</span><span class="gpa-pause-stat-value">${escapeHtml(String(r.value))}</span></div>`
+    ).join('');
+  }
+
+  function pauseGame() {
+    if (isGamePaused) return;
+    isGamePaused = true;
+    gamePausedAt = Date.now();
+    if (activeGameControls && typeof activeGameControls.pause === 'function') {
+      try { activeGameControls.pause(); } catch (e) { /* ignore */ }
+    }
+    renderPauseStats();
+    pauseMenu.style.display = 'flex';
+    pauseBtn.textContent = '▶ Resume';
+  }
+
+  function resumeGame() {
+    if (!isGamePaused) return;
+    isGamePaused = false;
+    gamePausedTotal += Date.now() - gamePausedAt;
+    gamePausedAt = 0;
+    if (activeGameControls && typeof activeGameControls.resume === 'function') {
+      try { activeGameControls.resume(); } catch (e) { /* ignore */ }
+    }
+    pauseMenu.style.display = 'none';
+    pauseBtn.textContent = '⏸ Pause';
+  }
+
+  function togglePause() { isGamePaused ? resumeGame() : pauseGame(); }
+
   function loadGame(id) {
     currentGameId = id;
     stopActiveGame();
+    // Reset pause state for the new game.
+    isGamePaused = false;
+    gamePausedTotal = 0;
+    gamePausedAt = 0;
+    pauseMenu.style.display = 'none';
+    pauseBtn.textContent = '⏸ Pause';
+    gameStartedAt = Date.now();
+
     gameViewport.innerHTML = '';
     gameBtns.forEach((b) => b.classList.toggle('primary', b.dataset.game === id));
     const loader = GAME_LOADERS[id];
-    if (loader) activeGameCleanup = loader(gameViewport) || null;
+    if (!loader) return;
+    const returned = loader(gameViewport);
+    // Normalize both possible return shapes into one controls object.
+    activeGameControls = typeof returned === 'function'
+      ? { cleanup: returned }
+      : (returned && typeof returned === 'object' ? returned : {});
   }
+
   gameBtns.forEach((btn) => btn.addEventListener('click', () => loadGame(btn.dataset.game)));
   panel.querySelector('#gpa-game-restart').addEventListener('click', () => loadGame(currentGameId));
+  panel.querySelector('#gpa-pause-restart').addEventListener('click', () => loadGame(currentGameId));
+  panel.querySelector('#gpa-pause-resume').addEventListener('click', resumeGame);
+  pauseBtn.addEventListener('click', togglePause);
+
+  // Fullscreen the game stage (works from inside the shadow DOM).
+  fullscreenBtn.addEventListener('click', () => {
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fsEl) {
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    } else {
+      const req = gameStage.requestFullscreen || gameStage.webkitRequestFullscreen;
+      if (req) req.call(gameStage).catch(() => { /* page may block fullscreen */ });
+    }
+  });
+  function syncFullscreenLabel() {
+    const active = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    fullscreenBtn.textContent = active ? '⛶ Exit Fullscreen' : '⛶ Fullscreen';
+  }
+  document.addEventListener('fullscreenchange', syncFullscreenLabel);
+  document.addEventListener('webkitfullscreenchange', syncFullscreenLabel);
+
   loadGame('ttt');
 
 })();
