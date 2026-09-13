@@ -226,26 +226,33 @@
     </div>
     <div class="gpa-login" id="gpa-login">
       <div class="gpa-login-card">
-        <div class="gpa-login-title">Agent Console</div>
-        <div class="gpa-login-sub" id="gpa-login-mode-label">Sign in to load your saved progress</div>
-        <div class="gpa-row" style="margin-top:10px;">
-          <input id="gpa-login-user" class="gpa-input" placeholder="Profile name" autocomplete="off" />
+        <div class="gpa-login-brand">
+          <div class="gpa-login-logo">NW</div>
+          <div class="gpa-login-brandtext">
+            <div class="gpa-login-company">Northwind Workspace</div>
+            <div class="gpa-login-dept">Employee Resource Portal</div>
+          </div>
         </div>
-        <div class="gpa-row">
-          <input id="gpa-login-pin" class="gpa-input" type="password" placeholder="PIN / password" autocomplete="off" />
-        </div>
+        <div class="gpa-login-divider"></div>
+        <div class="gpa-login-heading">Sign in to your account</div>
+        <label class="gpa-login-label" for="gpa-login-user">Username</label>
+        <input id="gpa-login-user" class="gpa-login-input" placeholder="e.g. j.smith" autocomplete="off" />
+        <label class="gpa-login-label" for="gpa-login-pin">Password / PIN</label>
+        <input id="gpa-login-pin" class="gpa-login-input" type="password" placeholder="••••••" autocomplete="off" />
         <div id="gpa-login-msg" class="gpa-login-msg"></div>
-        <div class="gpa-row" style="margin-top:8px;">
-          <button id="gpa-login-btn" class="gpa-btn primary" style="flex:1;">Sign in</button>
-          <button id="gpa-signup-btn" class="gpa-btn" style="flex:1;">Create</button>
+        <button id="gpa-login-btn" class="gpa-login-primary">Sign In</button>
+        <div class="gpa-login-actions">
+          <button id="gpa-signup-btn" class="gpa-login-link">Register new account</button>
+          <span class="gpa-login-sep">|</span>
+          <button id="gpa-login-restore" class="gpa-login-link">Transfer access code</button>
         </div>
-        <div class="gpa-row" style="margin-top:6px;">
-          <button id="gpa-login-restore" class="gpa-btn" style="flex:1;">Restore from sync code</button>
-        </div>
-        <div class="gpa-login-note">
-          Heads-up: this PIN keeps profiles separate and stops casual snooping.
-          It is <b>not</b> real encryption — anyone with access to this browser
-          or the script can read the stored data. Don't reuse an important password.
+        <div class="gpa-login-footer">
+          <div>Authorized personnel only. Access may be monitored and logged.</div>
+          <div class="gpa-login-legal">
+            Credentials are stored locally in this browser and are not encrypted.
+            Do not reuse a password from any other system.
+          </div>
+          <div class="gpa-login-copyright">© Northwind Workspace · IT Service Desk ext. 4400</div>
         </div>
       </div>
     </div>
@@ -382,7 +389,9 @@
           <button id="gpa-game-pause" class="gpa-btn">⏸ Pause</button>
           <button id="gpa-game-fullscreen" class="gpa-btn">⛶ Fullscreen</button>
         </div>
+        <div class="gpa-sub" style="text-align:center; margin-bottom:4px;">Keys — P: pause · R: restart · T: timer</div>
         <div id="gpa-game-stage" class="gpa-game-stage">
+          <div id="gpa-game-timer" class="gpa-game-timer" style="display:none;">0:00</div>
           <div id="gpa-game-viewport" class="gpa-game-viewport"><div id="gpa-game-fit" class="gpa-game-fit"></div></div>
           <div id="gpa-game-pausemenu" class="gpa-pause-menu" style="display:none;">
             <div class="gpa-pause-card">
@@ -392,7 +401,7 @@
                 <button id="gpa-pause-resume" class="gpa-btn primary">▶ Resume</button>
                 <button id="gpa-pause-restart" class="gpa-btn">🔄 Restart</button>
               </div>
-              <div class="gpa-sub" style="text-align:center; margin-top:8px;">Press P to resume</div>
+              <div class="gpa-sub" style="text-align:center; margin-top:8px;">P resume · R restart · T timer</div>
             </div>
           </div>
         </div>
@@ -918,6 +927,13 @@
         display: flex; flex-direction: column; align-items: center; gap: 8px;
         transform-origin: top center;
       }
+      .gpa-game-timer {
+        position: absolute; top: 4px; right: 6px; z-index: 8;
+        padding: 3px 8px; border-radius: 3px; pointer-events: none;
+        background: ${t.field}cc; border: 1px solid ${t.accent}66; color: ${t.accent};
+        font-size: 11px; font-weight: 800; letter-spacing: 0.8px;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      }
       .gpa-pause-menu {
         position: absolute; inset: 0; z-index: 10;
         background: ${t.bg}e8; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
@@ -935,25 +951,63 @@
         text-transform: uppercase; color: ${t.accent}; margin-bottom: 10px;
         font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
       }
+      /* Login screen deliberately ignores the app theme — it's plain,
+         corporate and boring by design, so it reads as an ordinary
+         internal work portal rather than part of the console UI. */
       .gpa-login {
         position: absolute; inset: 0; z-index: 40;
-        background: linear-gradient(160deg, ${t.panel}fa, ${t.bg}fd);
-        backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-        display: flex; align-items: center; justify-content: center; padding: 14px;
+        background: #f4f5f7;
+        display: flex; align-items: center; justify-content: center; padding: 16px;
+        font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+        overflow-y: auto;
       }
-      .gpa-login-card { width: 100%; max-width: 280px; }
-      .gpa-login-title {
-        text-align: center; font-size: 14px; font-weight: 800; letter-spacing: 1.6px;
-        text-transform: uppercase; color: ${t.accent};
-        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      .gpa-login-card {
+        width: 100%; max-width: 300px; background: #ffffff;
+        border: 1px solid #d6d9de; border-radius: 2px; padding: 20px 18px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.06);
       }
-      .gpa-login-sub { text-align: center; font-size: 10.5px; color: ${t.sub}; margin-top: 6px; }
-      .gpa-login-msg { font-size: 10.5px; margin-top: 8px; text-align: center; min-height: 14px; color: ${t.accent}; }
-      .gpa-login-msg.error { color: #e5453a; }
-      .gpa-login-note {
-        margin-top: 12px; font-size: 9px; line-height: 1.5; color: ${t.sub};
-        border-top: 1px solid ${t.border}; padding-top: 8px;
+      .gpa-login-brand { display: flex; align-items: center; gap: 10px; }
+      .gpa-login-logo {
+        width: 34px; height: 34px; flex-shrink: 0; background: #1f4e8c; color: #fff;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 13px; font-weight: 700; letter-spacing: 0.5px; border-radius: 2px;
       }
+      .gpa-login-company { font-size: 13px; font-weight: 600; color: #1f2933; line-height: 1.2; }
+      .gpa-login-dept { font-size: 10px; color: #6b7280; margin-top: 2px; }
+      .gpa-login-divider { height: 1px; background: #e4e6ea; margin: 14px 0; }
+      .gpa-login-heading { font-size: 12px; font-weight: 600; color: #1f2933; margin-bottom: 12px; }
+      .gpa-login-label {
+        display: block; font-size: 10.5px; color: #4b5563; margin-bottom: 4px; font-weight: 600;
+      }
+      .gpa-login-input {
+        width: 100%; padding: 7px 9px; margin-bottom: 12px;
+        border: 1px solid #c4c9d0; border-radius: 2px; background: #fff;
+        font-size: 12px; color: #1f2933; outline: none;
+        font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+      }
+      .gpa-login-input:focus { border-color: #1f4e8c; box-shadow: 0 0 0 2px rgba(31,78,140,0.12); }
+      .gpa-login-primary {
+        width: 100%; padding: 8px; background: #1f4e8c; color: #fff;
+        border: 1px solid #1a4278; border-radius: 2px; cursor: pointer;
+        font-size: 12px; font-weight: 600;
+        font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+      }
+      .gpa-login-primary:hover { background: #1a4278; }
+      .gpa-login-msg { font-size: 10.5px; min-height: 14px; margin-bottom: 6px; color: #1f4e8c; }
+      .gpa-login-msg.error { color: #b42318; }
+      .gpa-login-actions { margin-top: 10px; text-align: center; }
+      .gpa-login-link {
+        background: none; border: none; padding: 0; cursor: pointer;
+        color: #1f4e8c; font-size: 10.5px; text-decoration: underline;
+        font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+      }
+      .gpa-login-sep { color: #c4c9d0; font-size: 10.5px; margin: 0 6px; }
+      .gpa-login-footer {
+        margin-top: 16px; padding-top: 12px; border-top: 1px solid #e4e6ea;
+        font-size: 9px; color: #6b7280; line-height: 1.5;
+      }
+      .gpa-login-legal { margin-top: 6px; color: #8a919c; }
+      .gpa-login-copyright { margin-top: 8px; color: #9aa1ac; }
       .gpa-sync-box {
         width: 100%; min-height: 54px; margin-top: 6px; padding: 7px;
         background: ${t.field}; border: 1px solid ${t.border}; border-radius: 5px;
@@ -3001,7 +3055,12 @@
     const status = document.createElement('div');
     status.className = 'gpa-game-status';
 
-    let snake, dir, nextDir, food, score, over, timer;
+    // Smooth movement: the snake still thinks in whole grid cells, but
+    // rendering interpolates between each segment's previous and current
+    // cell every animation frame, so it glides instead of teleporting.
+    const STEP_MS = 150;
+    let snake, prevSnake, dir, nextDir, food, score, over, paused = false;
+    let raf = null, lastStep = 0;
 
     function placeFood() {
       do { food = { x: Math.floor(Math.random() * size), y: Math.floor(Math.random() * size) }; }
@@ -3009,22 +3068,48 @@
     }
     function reset() {
       snake = [{ x: 6, y: 6 }, { x: 5, y: 6 }, { x: 4, y: 6 }];
+      prevSnake = snake.map((s) => ({ ...s }));
       dir = { x: 1, y: 0 }; nextDir = { x: 1, y: 0 };
       placeFood();
       score = 0; over = false;
+      lastStep = performance.now();
       status.textContent = `Score: 0   Best: ${getBest('snake')}`;
     }
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#ff5252';
-      ctx.fillRect(food.x * cell, food.y * cell, cell - 2, cell - 2);
-      snake.forEach((s, i) => {
-        ctx.fillStyle = i === 0 ? '#ffffff' : THEMES[theme].accent;
-        ctx.fillRect(s.x * cell, s.y * cell, cell - 2, cell - 2);
-      });
+    function roundRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+      ctx.fill();
     }
-    function tick() {
-      if (over) return;
+    function draw(progress) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Food gets a subtle pulse so the board feels alive between steps.
+      const pulse = 1 + Math.sin(performance.now() / 220) * 0.08;
+      const fs = (cell - 4) * pulse;
+      ctx.fillStyle = '#ff5252';
+      roundRect(food.x * cell + (cell - fs) / 2, food.y * cell + (cell - fs) / 2, fs, fs, 3);
+
+      const accent = THEMES[theme].accent;
+      for (let i = snake.length - 1; i >= 0; i--) {
+        const target = snake[i];
+        const source = prevSnake[i] || target;
+        // Don't interpolate across a wrap/teleport-sized jump.
+        const dx = target.x - source.x, dy = target.y - source.y;
+        const jumped = Math.abs(dx) > 1 || Math.abs(dy) > 1;
+        const t = over ? 1 : (jumped ? 1 : progress);
+        const px = (source.x + dx * t) * cell;
+        const py = (source.y + dy * t) * cell;
+        ctx.fillStyle = i === 0 ? '#ffffff' : accent;
+        ctx.globalAlpha = i === 0 ? 1 : Math.max(0.45, 1 - i / (snake.length + 4));
+        roundRect(px + 1, py + 1, cell - 2, cell - 2, 3);
+      }
+      ctx.globalAlpha = 1;
+    }
+    function step() {
       dir = nextDir;
       const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
       if (head.x < 0 || head.x >= size || head.y < 0 || head.y >= size || snake.some((s) => s.x === head.x && s.y === head.y)) {
@@ -3033,6 +3118,7 @@
         status.textContent = `Game over! Score: ${score}   Best: ${best}`;
         return;
       }
+      prevSnake = snake.map((s) => ({ ...s }));
       snake.unshift(head);
       if (head.x === food.x && head.y === food.y) {
         score++;
@@ -3041,7 +3127,16 @@
       } else {
         snake.pop();
       }
-      draw();
+    }
+    function loop(now) {
+      if (over || paused) return;
+      const elapsed = now - lastStep;
+      if (elapsed >= STEP_MS) {
+        lastStep = now - (elapsed % STEP_MS);
+        step();
+      }
+      draw(Math.min(1, (now - lastStep) / STEP_MS));
+      if (!over) raf = requestAnimationFrame(loop);
     }
     function onKey(e) {
       const map = {
@@ -3049,7 +3144,7 @@
         w: { x: 0, y: -1 }, s: { x: 0, y: 1 }, a: { x: -1, y: 0 }, d: { x: 1, y: 0 }
       };
       const nd = map[e.key];
-      if (!nd) return;
+      if (!nd || paused) return;
       e.preventDefault();
       if (nd.x === -dir.x && nd.y === -dir.y) return;
       nextDir = nd;
@@ -3057,8 +3152,8 @@
 
     window.addEventListener('keydown', onKey);
     reset();
-    draw();
-    timer = setInterval(tick, 140);
+    draw(0);
+    raf = requestAnimationFrame(loop);
 
     const hint = document.createElement('div');
     hint.className = 'gpa-sub';
@@ -3068,9 +3163,14 @@
     root.appendChild(hint);
 
     return {
-      cleanup: () => { clearInterval(timer); window.removeEventListener('keydown', onKey); },
-      pause: () => { clearInterval(timer); timer = null; },
-      resume: () => { if (!timer && !over) timer = setInterval(tick, 140); },
+      cleanup: () => { cancelAnimationFrame(raf); window.removeEventListener('keydown', onKey); },
+      pause: () => { paused = true; cancelAnimationFrame(raf); },
+      resume: () => {
+        if (over) return;
+        paused = false;
+        lastStep = performance.now(); // don't let paused time cause a jump
+        raf = requestAnimationFrame(loop);
+      },
       stats: () => [
         { label: 'Score', value: score },
         { label: 'Length', value: snake.length },
@@ -4649,11 +4749,34 @@
   panel.querySelector('#gpa-pause-resume').addEventListener('click', resumeGame);
   pauseBtn.addEventListener('click', togglePause);
 
-  // "P" toggles pause/resume — works both in the panel and in fullscreen.
-  // Ignored while typing so it never hijacks a real keystroke, and only
-  // active while the Games tab is actually open.
+  // ---- Match timer (toggled with "T") ----
+  const gameTimerEl = panel.querySelector('#gpa-game-timer');
+  let timerVisible = false;
+  let timerTick = null;
+
+  function refreshGameTimer() {
+    if (!timerVisible) return;
+    gameTimerEl.textContent = formatElapsed(gameElapsedSeconds());
+  }
+  function toggleGameTimer() {
+    timerVisible = !timerVisible;
+    gameTimerEl.style.display = timerVisible ? 'block' : 'none';
+    if (timerVisible) {
+      refreshGameTimer();
+      if (!timerTick) timerTick = setInterval(refreshGameTimer, 500);
+    } else if (timerTick) {
+      clearInterval(timerTick);
+      timerTick = null;
+    }
+  }
+
+  // Keyboard shortcuts for the Games tab: P = pause/resume, R = restart,
+  // T = show/hide the match timer. All share the same guards — ignored while
+  // typing, ignored with modifier keys, and only while the Games tab is open.
+  // They work in fullscreen too, since the listener is on window.
   window.addEventListener('keydown', (e) => {
-    if (e.key !== 'p' && e.key !== 'P') return;
+    const k = e.key.toLowerCase();
+    if (k !== 'p' && k !== 'r' && k !== 't') return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const gamesPane = panel.querySelector('.gpa-pane[data-pane="games"]');
     if (!gamesPane || !gamesPane.classList.contains('active')) return;
@@ -4664,7 +4787,9 @@
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || activeEl.isContentEditable) return;
     }
     e.preventDefault();
-    togglePause();
+    if (k === 'p') togglePause();
+    else if (k === 'r') loadGame(currentGameId);
+    else if (k === 't') toggleGameTimer();
   });
 
   // Fullscreen the game stage (works from inside the shadow DOM).
