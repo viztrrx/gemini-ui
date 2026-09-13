@@ -1,0 +1,7 @@
+{
+  "modules": [
+    { "name": "Insights", "url": "https://raw.githubusercontent.com/viztrrx/gemini-ui/main/modules/automation.js" },
+    { "name": "Games", "url": "https://raw.githubusercontent.com/viztrrx/gemini-ui/main/modules/games.js" },
+    { "name": "Music", "url": "https://raw.githubusercontent.com/viztrrx/gemini-ui/main/modules/music.js" }
+  ]
+}
