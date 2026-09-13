@@ -270,6 +270,7 @@
           <button class="gpa-dropdown-item" data-tab="music">Music</button>
           <button class="gpa-dropdown-item" data-tab="browser">Browser</button>
           <button class="gpa-dropdown-item" data-tab="games">Games</button>
+          <button class="gpa-dropdown-item" data-tab="saved">Saved</button>
           <button class="gpa-dropdown-item" data-tab="theme">Settings</button>
         </div>
       </div>
@@ -295,6 +296,7 @@
         <div class="gpa-row gpa-actions" id="gpa-scan-actions" style="display:none;">
           <button class="gpa-btn primary" data-action="summarize">Summarize</button>
           <button class="gpa-btn primary" data-action="analyze">Analyze</button>
+          <button class="gpa-btn" data-action="autofill">Auto-Fill Form</button>
         </div>
         <div class="gpa-row" id="gpa-question-row" style="display:none;">
           <input id="gpa-question" class="gpa-input" placeholder="Ask a question about this page…" />
@@ -408,6 +410,11 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <div class="gpa-pane" data-pane="saved">
+        <div class="gpa-sub" style="margin-bottom:8px;">Your Saved Insights</div>
+        <div id="gpa-saved-list" class="gpa-chat"></div>
       </div>
 
       <div class="gpa-pane" data-pane="theme">
@@ -1413,6 +1420,7 @@
       dropdownLabel.textContent = item.textContent;
       dropdown.classList.remove('open');
       if (item.dataset.tab !== 'games') stopActiveGame();
+      if (item.dataset.tab === 'saved') renderSavedInsights();
       // A hidden pane measures as zero, so games can only be sized once
       // the tab is actually visible.
       else requestAnimationFrame(() => { if (typeof fitGameToStage === 'function') fitGameToStage(); });
@@ -2167,6 +2175,83 @@
     list.forEach((s) => { if (typeof s === 'string') highlightSnippetOnPage(s); });
   }
 
+  function saveInsight(text) {
+    const saved = JSON.parse(localStorage.getItem('gpa_saved_insights') || '[]');
+    saved.push({
+      text,
+      url: window.location.href,
+      title: document.title,
+      date: new Date().toLocaleString()
+    });
+    localStorage.setItem('gpa_saved_insights', JSON.stringify(saved));
+    alert('Insight saved to your profile!');
+  }
+
+  function renderSavedInsights() {
+    const listEl = panel.querySelector('#gpa-saved-list');
+    if (!listEl) return;
+    const saved = JSON.parse(localStorage.getItem('gpa_saved_insights') || '[]');
+    listEl.innerHTML = saved.length ? '' : '<div class="gpa-sub">No saved insights yet.</div>';
+    saved.reverse().forEach((it) => {
+      const div = document.createElement('div');
+      div.className = 'gpa-msg ai';
+      div.style.marginBottom = '8px';
+      div.innerHTML = `
+        <div class="gpa-sub" style="font-weight:700; margin-bottom:4px;">${escapeHtml(it.title)}</div>
+        <div style="font-size:11px; margin-bottom:6px;">${escapeHtml(it.text)}</div>
+        <div class="gpa-row" style="justify-content:space-between; font-size:9px; opacity:0.7;">
+          <span>${it.date}</span>
+          <a href="${it.url}" target="_blank" style="color:${THEMES[theme].accent}; text-decoration:none;">Visit Page</a>
+        </div>
+      `;
+      listEl.appendChild(div);
+    });
+  }
+
+  async function autoFillForm() {
+    const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]), textarea, select'));
+    if (!inputs.length) { alert('No form fields found on this page.'); return; }
+
+    const fieldInfo = inputs.map((el, i) => {
+      const label = el.closest('label')?.textContent || el.getAttribute('aria-label') || el.placeholder || el.name || `Field ${i+1}`;
+      return { id: i, label: label.trim(), type: el.type || 'text' };
+    });
+
+    scanOutput.textContent = 'AI is analyzing form fields...';
+    try {
+      const sys = 'You are a form-filling assistant. Based on the provided page content and the list of form fields, generate realistic but mock values for each field. Return ONLY a JSON array of objects: [{"id":0, "v":"Value"}, ...]. If a field is obviously not needed or can\'t be filled, omit it from the array.';
+      const userText = `PAGE TEXT:\n${pageText}\n\nFIELDS TO FILL:\n${JSON.stringify(fieldInfo)}`;
+      const out = await callAI(userText, sys);
+      const mapping = JSON.parse(out);
+
+      mapping.forEach((item) => {
+        const el = inputs[item.id];
+        if (el) {
+          if (el.tagName === 'SELECT') {
+            const opt = Array.from(el.options).find(o => o.text.toLowerCase().includes(item.v.toLowerCase()));
+            if (opt) el.value = opt.value;
+          } else {
+            el.value = item.v;
+          }
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+      scanOutput.textContent = 'Form fields filled with suggested values!';
+    } catch (e) {
+      showError(scanOutput, e, currentProviderLabel());
+    }
+  }
+
+  function addSaveButton(container, text) {
+    const btn = document.createElement('button');
+    btn.className = 'gpa-btn';
+    btn.style.marginTop = '8px';
+    btn.textContent = '💾 Save Insight';
+    btn.addEventListener('click', () => saveInsight(text));
+    container.appendChild(btn);
+  }
+
   function extractPageText() {
     const clone = document.body.cloneNode(true);
     clone.querySelectorAll('script,style,noscript,svg,canvas,iframe').forEach((el) => el.remove());
@@ -2412,6 +2497,7 @@
     btn.addEventListener('click', async () => {
       if (!pageText && !screenshotDataUrl) { scanOutput.textContent = 'Scan the page or capture the screen first.'; return; }
       const action = btn.dataset.action;
+      if (action === 'autofill') { autoFillForm(); return; }
       const highlightNote = ' Then, on its own final line, write "HIGHLIGHTS: " followed by a JSON array of 2-5 short exact verbatim quotes (a few words each, copied exactly from PAGE TEXT — not paraphrased) marking the most important clues/info, e.g. HIGHLIGHTS: ["exact phrase one", "exact phrase two"]. If nothing stands out or there is no page text, use an empty array.';
       const sys = (action === 'summarize'
         ? 'Summarize the provided content in plain, everyday sentences — the shortest version that still covers the essentials. No markdown formatting (no asterisks, headers, or numbered/bulleted lists) since this is shown as plain text. If both page text and a screenshot are provided, use both together. Then, on its own line, write exactly "CONFIDENCE: NN" where NN (0-100) is how confident you are that this summary faithfully and accurately represents the source content.'
@@ -2425,6 +2511,7 @@
         const { text: cleanText, confidence } = extractConfidenceLine(t1);
         typeText(scanOutput, cleanText, scanOutput, () => {
           appendConfidenceBadge(scanOutput, confidence);
+          addSaveButton(scanOutput, cleanText);
           if (highlightsRaw) {
             try {
               const snippets = JSON.parse(highlightsRaw);
@@ -2464,6 +2551,7 @@
         const { text: cleanText, confidence } = extractConfidenceLine(t1);
         typeText(scanOutput, cleanText, scanOutput, () => {
           appendConfidenceBadge(scanOutput, confidence);
+          addSaveButton(scanOutput, cleanText);
           if (highlightSnippet) highlightSnippetOnPage(highlightSnippet);
         });
       }
