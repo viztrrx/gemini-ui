@@ -1284,6 +1284,20 @@
     body.style.display = v ? 'none' : 'flex';
     headerEl.style.display = v ? 'none' : 'flex';
     minimized.style.display = v ? 'flex' : 'none';
+    // The login overlay sits at z-index 40 across the whole panel, so if it
+    // stays mounted while collapsed it covers the mini button and eats every
+    // click and drag. Hide it while minimized; restore it on expand if the
+    // user still hasn't signed in. (Queried live rather than closed over,
+    // since this function is defined before the overlay reference exists.)
+    const loginEl = panel.querySelector('#gpa-login');
+    const signedInNow = typeof currentUser !== 'undefined' && currentUser;
+    if (loginEl) {
+      loginEl.style.display = v ? 'none' : (signedInNow ? 'none' : 'flex');
+    }
+    // The locked-chrome rules use !important (rounded corners, panel shadow),
+    // which would otherwise paint a panel-sized shadow around the collapsed
+    // dot. Drop the class while minimized, restore it on expand if signed out.
+    panel.classList.toggle('gpa-locked', !v && !signedInNow);
     panel.style.width = v ? 'auto' : (PANEL_SIZES[panelSizeKey] || PANEL_SIZES.normal).w + 'px';
     panel.style.height = v ? 'auto' : (PANEL_SIZES[panelSizeKey] || PANEL_SIZES.normal).h + 'px';
     panel.style.background = v ? 'transparent' : THEMES[theme].panel;
