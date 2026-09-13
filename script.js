@@ -358,7 +358,7 @@
           <button id="gpa-game-fullscreen" class="gpa-btn">⛶ Fullscreen</button>
         </div>
         <div id="gpa-game-stage" class="gpa-game-stage">
-          <div id="gpa-game-viewport" class="gpa-game-viewport"></div>
+          <div id="gpa-game-viewport" class="gpa-game-viewport"><div id="gpa-game-fit" class="gpa-game-fit"></div></div>
           <div id="gpa-game-pausemenu" class="gpa-pause-menu" style="display:none;">
             <div class="gpa-pause-card">
               <div class="gpa-pause-title">⏸ Paused</div>
@@ -367,6 +367,7 @@
                 <button id="gpa-pause-resume" class="gpa-btn primary">▶ Resume</button>
                 <button id="gpa-pause-restart" class="gpa-btn">🔄 Restart</button>
               </div>
+              <div class="gpa-sub" style="text-align:center; margin-top:8px;">Press P to resume</div>
             </div>
           </div>
         </div>
@@ -859,9 +860,16 @@
       .game-btn { flex: 1 1 auto; min-width: 64px; font-size: 9.5px; }
       .gpa-game-stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
       .gpa-game-viewport {
-        flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px;
-        display: flex; flex-direction: column; align-items: center; gap: 8px;
+        flex: 1; min-height: 0; overflow: hidden; margin-top: 8px;
+        display: flex; flex-direction: column; align-items: center;
+        justify-content: flex-start;
         padding: 6px 2px;
+      }
+      /* Inner wrapper that gets uniformly scaled by fitGameToStage() so any
+         game fits whatever panel size (or fullscreen) is active. */
+      .gpa-game-fit {
+        display: flex; flex-direction: column; align-items: center; gap: 8px;
+        transform-origin: top center;
       }
       .gpa-pause-menu {
         position: absolute; inset: 0; z-index: 10;
@@ -889,7 +897,9 @@
       }
       .gpa-pause-stat-label { color: ${t.sub}; text-transform: uppercase; letter-spacing: 0.5px; font-size: 9.5px; }
       .gpa-pause-stat-value { color: ${t.accent}; font-weight: 800; }
-      /* Fullscreen: the stage becomes the whole screen, game centered on it. */
+      /* Fullscreen: the stage becomes the whole screen, game centered on it.
+         Scaling itself is handled in JS by fitGameToStage() so mouse
+         coordinates stay correct (a fixed CSS scale would break them). */
       .gpa-game-stage:fullscreen,
       .gpa-game-stage:-webkit-full-screen {
         background: ${t.bg}; padding: 20px;
@@ -900,7 +910,7 @@
       }
       .gpa-game-stage:fullscreen .game-canvas,
       .gpa-game-stage:-webkit-full-screen .game-canvas {
-        transform: scale(1.9); transform-origin: center; image-rendering: pixelated;
+        image-rendering: pixelated;
       }
       .gpa-game-status {
         font-size: 12px; font-weight: 700; color: ${t.text}; text-align: center;
@@ -1174,6 +1184,9 @@
       dropdownLabel.textContent = item.textContent;
       dropdown.classList.remove('open');
       if (item.dataset.tab !== 'games') stopActiveGame();
+      // A hidden pane measures as zero, so games can only be sized once
+      // the tab is actually visible.
+      else requestAnimationFrame(() => { if (typeof fitGameToStage === 'function') fitGameToStage(); });
     });
   });
 
@@ -1537,6 +1550,8 @@
     PARTICLE_PANEL_H = h;
     resizeParticleCanvas();
     initParticles(localStorage.getItem(PARTICLE_KEY) || 'off');
+    // The games stage just changed size too — rescale whatever is loaded.
+    if (typeof fitGameToStage === 'function') requestAnimationFrame(fitGameToStage);
   }
   setSizeUI(panelSizeKey);
   applyPanelSize(panelSizeKey);
@@ -2459,6 +2474,28 @@
   // returns an array of {label, value} shown in the pause menu, so each game
   // can surface whatever actually matters for it (score, rounds, lives…).
   const gameViewport = panel.querySelector('#gpa-game-viewport');
+  const gameFit = panel.querySelector('#gpa-game-fit');
+
+  // Scales the whole game uniformly so it always fits the available stage
+  // area — whatever interface size preset is active, and in fullscreen.
+  // Scaling the wrapper (rather than each game) keeps every game's internal
+  // coordinate math untouched; pointer-based games read the scale back off
+  // getBoundingClientRect(), so clicks stay accurate at any zoom.
+  function fitGameToStage() {
+    if (!gameFit) return;
+    gameFit.style.transform = 'none';
+    const availW = Math.max(40, gameViewport.clientWidth - 4);
+    const availH = Math.max(40, gameViewport.clientHeight - 4);
+    const natW = gameFit.scrollWidth;
+    const natH = gameFit.scrollHeight;
+    if (!natW || !natH) return;
+    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    // Shrink to fit always; only grow when fullscreen (so a small game in a
+    // small panel doesn't get blown up into a blurry mess).
+    const maxScale = isFs ? 3.2 : 1;
+    const scale = Math.min(maxScale, availW / natW, availH / natH);
+    gameFit.style.transform = scale < 0.999 || scale > 1.001 ? `scale(${scale})` : 'none';
+  }
   const gameBtns = panel.querySelectorAll('.game-btn');
   let activeGameControls = null;
   let gameStartedAt = 0;
@@ -3538,7 +3575,10 @@
     }
     function onMove(e) {
       const rect = canvas.getBoundingClientRect();
-      const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+      // rect.width reflects any CSS scaling applied by fitGameToStage(), so
+      // divide it back out to get true canvas coordinates.
+      const scale = rect.width / W || 1;
+      const x = ((e.touches ? e.touches[0].clientX : e.clientX) - rect.left) / scale;
       paddleX = Math.max(0, Math.min(W - paddleW, x - paddleW / 2));
     }
     canvas.addEventListener('mousemove', onMove);
@@ -3578,7 +3618,11 @@
     status.className = 'gpa-game-status';
 
     let birdY, birdV, pipes, score, over, started, raf, paused = false;
-    const gravity = 0.3, flapV = -5.2, pipeGap = 80, pipeW = 30, pipeSpeed = 1.6;
+    // Tuned to be actually playable: gentler gravity, a softer flap, a wider
+    // gap, and a terminal-velocity cap so the bird never plummets faster
+    // than you can react to.
+    const gravity = 0.16, flapV = -4.0, pipeGap = 96, pipeW = 30, pipeSpeed = 1.25;
+    const maxFallV = 4.0;
 
     function spawnPipe() {
       const gapY = 40 + Math.random() * (H - 80 - pipeGap);
@@ -3612,6 +3656,7 @@
     function step() {
       if (over || !started || paused) return;
       birdV += gravity;
+      if (birdV > maxFallV) birdV = maxFallV;
       birdY += birdV;
       pipes.forEach((p) => { p.x -= pipeSpeed; });
       if (pipes.length && pipes[0].x < -pipeW) pipes.shift();
@@ -4304,15 +4349,18 @@
     pauseBtn.textContent = '⏸ Pause';
     gameStartedAt = Date.now();
 
-    gameViewport.innerHTML = '';
+    gameFit.innerHTML = '';
+    gameFit.style.transform = 'none';
     gameBtns.forEach((b) => b.classList.toggle('primary', b.dataset.game === id));
     const loader = GAME_LOADERS[id];
     if (!loader) return;
-    const returned = loader(gameViewport);
+    const returned = loader(gameFit);
     // Normalize both possible return shapes into one controls object.
     activeGameControls = typeof returned === 'function'
       ? { cleanup: returned }
       : (returned && typeof returned === 'object' ? returned : {});
+    // Let layout settle before measuring, then scale to fit.
+    requestAnimationFrame(fitGameToStage);
   }
 
   gameBtns.forEach((btn) => btn.addEventListener('click', () => loadGame(btn.dataset.game)));
@@ -4320,6 +4368,24 @@
   panel.querySelector('#gpa-pause-restart').addEventListener('click', () => loadGame(currentGameId));
   panel.querySelector('#gpa-pause-resume').addEventListener('click', resumeGame);
   pauseBtn.addEventListener('click', togglePause);
+
+  // "P" toggles pause/resume — works both in the panel and in fullscreen.
+  // Ignored while typing so it never hijacks a real keystroke, and only
+  // active while the Games tab is actually open.
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'p' && e.key !== 'P') return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const gamesPane = panel.querySelector('.gpa-pane[data-pane="games"]');
+    if (!gamesPane || !gamesPane.classList.contains('active')) return;
+    // Don't steal the key from a text field (inside the panel or on the page).
+    const activeEl = root.activeElement || document.activeElement;
+    if (activeEl) {
+      const tag = (activeEl.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || activeEl.isContentEditable) return;
+    }
+    e.preventDefault();
+    togglePause();
+  });
 
   // Fullscreen the game stage (works from inside the shadow DOM).
   fullscreenBtn.addEventListener('click', () => {
@@ -4334,7 +4400,10 @@
   function syncFullscreenLabel() {
     const active = !!(document.fullscreenElement || document.webkitFullscreenElement);
     fullscreenBtn.textContent = active ? '⛶ Exit Fullscreen' : '⛶ Fullscreen';
+    // Entering/leaving fullscreen changes the available area — refit.
+    requestAnimationFrame(fitGameToStage);
   }
+  window.addEventListener('resize', () => requestAnimationFrame(fitGameToStage));
   document.addEventListener('fullscreenchange', syncFullscreenLabel);
   document.addEventListener('webkitfullscreenchange', syncFullscreenLabel);
 
