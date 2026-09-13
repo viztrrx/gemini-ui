@@ -224,6 +224,31 @@
       <span class="gpa-dot"></span>
       <button id="gpa-close" title="Close">&times;</button>
     </div>
+    <div class="gpa-login" id="gpa-login">
+      <div class="gpa-login-card">
+        <div class="gpa-login-title">Agent Console</div>
+        <div class="gpa-login-sub" id="gpa-login-mode-label">Sign in to load your saved progress</div>
+        <div class="gpa-row" style="margin-top:10px;">
+          <input id="gpa-login-user" class="gpa-input" placeholder="Profile name" autocomplete="off" />
+        </div>
+        <div class="gpa-row">
+          <input id="gpa-login-pin" class="gpa-input" type="password" placeholder="PIN / password" autocomplete="off" />
+        </div>
+        <div id="gpa-login-msg" class="gpa-login-msg"></div>
+        <div class="gpa-row" style="margin-top:8px;">
+          <button id="gpa-login-btn" class="gpa-btn primary" style="flex:1;">Sign in</button>
+          <button id="gpa-signup-btn" class="gpa-btn" style="flex:1;">Create</button>
+        </div>
+        <div class="gpa-row" style="margin-top:6px;">
+          <button id="gpa-login-restore" class="gpa-btn" style="flex:1;">Restore from sync code</button>
+        </div>
+        <div class="gpa-login-note">
+          Heads-up: this PIN keeps profiles separate and stops casual snooping.
+          It is <b>not</b> real encryption — anyone with access to this browser
+          or the script can read the stored data. Don't reuse an important password.
+        </div>
+      </div>
+    </div>
     <div class="gpa-body" id="gpa-body">
       <div class="gpa-dropdown" id="gpa-dropdown">
         <button class="gpa-dropdown-btn" id="gpa-dropdown-btn">
@@ -389,6 +414,28 @@
           <label for="gpa-custom-color" class="gpa-sub" style="flex:1;">Custom color (pick any shade)</label>
           <input type="color" id="gpa-custom-color" class="gpa-color-input" value="#8b5cf6" />
         </div>
+        <div class="gpa-sub" style="margin:14px 0 6px;">Account &amp; sync</div>
+        <div class="gpa-row">
+          <span id="gpa-account-who" class="gpa-sub">Not signed in</span>
+          <button id="gpa-logout-btn" class="gpa-btn">Sign out</button>
+        </div>
+        <div class="gpa-row" style="margin-top:6px;">
+          <button id="gpa-sync-export" class="gpa-btn" style="flex:1;">Copy sync code</button>
+          <button id="gpa-sync-import" class="gpa-btn" style="flex:1;">Load sync code</button>
+        </div>
+        <textarea id="gpa-sync-box" class="gpa-sync-box" placeholder="Your sync code appears here. Paste one from another device and press Load sync code."></textarea>
+        <div class="gpa-sub" style="margin-top:6px;">Optional cloud auto-sync (JSONBin)</div>
+        <div class="gpa-row">
+          <input id="gpa-cloud-bin" class="gpa-input" placeholder="Bin ID" autocomplete="off" />
+        </div>
+        <div class="gpa-row">
+          <input id="gpa-cloud-key" class="gpa-input" type="password" placeholder="X-Master-Key" autocomplete="off" />
+        </div>
+        <div class="gpa-row">
+          <button id="gpa-cloud-push" class="gpa-btn" style="flex:1;">Upload</button>
+          <button id="gpa-cloud-pull" class="gpa-btn" style="flex:1;">Download</button>
+        </div>
+        <div id="gpa-cloud-msg" class="gpa-sub" style="margin-top:4px;"></div>
         <div class="gpa-sub" style="margin:14px 0 6px;">AI provider</div>
         <div class="gpa-row">
           <button class="gpa-btn provider-btn primary" data-provider="gemini">Gemini</button>
@@ -888,6 +935,33 @@
         text-transform: uppercase; color: ${t.accent}; margin-bottom: 10px;
         font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
       }
+      .gpa-login {
+        position: absolute; inset: 0; z-index: 40;
+        background: linear-gradient(160deg, ${t.panel}fa, ${t.bg}fd);
+        backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+        display: flex; align-items: center; justify-content: center; padding: 14px;
+      }
+      .gpa-login-card { width: 100%; max-width: 280px; }
+      .gpa-login-title {
+        text-align: center; font-size: 14px; font-weight: 800; letter-spacing: 1.6px;
+        text-transform: uppercase; color: ${t.accent};
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      }
+      .gpa-login-sub { text-align: center; font-size: 10.5px; color: ${t.sub}; margin-top: 6px; }
+      .gpa-login-msg { font-size: 10.5px; margin-top: 8px; text-align: center; min-height: 14px; color: ${t.accent}; }
+      .gpa-login-msg.error { color: #e5453a; }
+      .gpa-login-note {
+        margin-top: 12px; font-size: 9px; line-height: 1.5; color: ${t.sub};
+        border-top: 1px solid ${t.border}; padding-top: 8px;
+      }
+      .gpa-sync-box {
+        width: 100%; min-height: 54px; margin-top: 6px; padding: 7px;
+        background: ${t.field}; border: 1px solid ${t.border}; border-radius: 5px;
+        color: ${t.text}; font-size: 9.5px; resize: vertical; outline: none;
+        word-break: break-all;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+      }
+      .gpa-sync-box:focus { border-color: ${t.accent}; }
       .gpa-pause-stats { display: flex; flex-direction: column; gap: 5px; }
       .gpa-pause-stat {
         display: flex; justify-content: space-between; align-items: center; gap: 10px;
@@ -2467,6 +2541,212 @@
   }
   askBtn.addEventListener('click', sendChat);
   askInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+
+  // ---- Profiles, save state & cross-device sync -----------------------------
+  // HOW THIS WORKS (and what it is not):
+  //  * All of this script's settings/progress live in localStorage under
+  //    "gpa_" keys. A profile is just a snapshot of every one of those keys.
+  //  * Signing in restores that snapshot; signing out / auto-save captures it.
+  //  * The PIN separates profiles and stops casual snooping. It is NOT
+  //    encryption — the data sits in plain localStorage and this script is
+  //    readable by anyone with the URL. Never reuse an important password.
+  //  * Cross-device transfer works two ways: a portable "sync code" (a
+  //    base64 blob you copy between machines, no server needed), or optional
+  //    cloud auto-sync using credentials YOU enter at runtime — deliberately
+  //    never hard-coded, so nothing secret ends up in a public repo.
+  const PROFILE_PREFIX = 'gpa_profile_';
+  const SESSION_KEY = 'gpa_session_user';
+  const CLOUD_BIN_KEY = 'gpa_cloud_bin';
+  const CLOUD_SECRET_KEY = 'gpa_cloud_key';
+  // Keys that identify the session/profiles themselves must never be swept
+  // into a profile snapshot, or restoring one would clobber the login system.
+  const NON_PROFILE_KEYS = [SESSION_KEY, CLOUD_BIN_KEY, CLOUD_SECRET_KEY];
+
+  const loginOverlay = panel.querySelector('#gpa-login');
+  const loginUserInput = panel.querySelector('#gpa-login-user');
+  const loginPinInput = panel.querySelector('#gpa-login-pin');
+  const loginMsg = panel.querySelector('#gpa-login-msg');
+  let currentUser = null;
+
+  async function hashPin(user, pin) {
+    const text = `gpa|${user}|${pin}`;
+    if (window.crypto && window.crypto.subtle) {
+      try {
+        const buf = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+        return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+      } catch (e) { /* fall through to the non-crypto path below */ }
+    }
+    // Fallback for non-secure contexts where SubtleCrypto is unavailable.
+    let h = 0;
+    for (let i = 0; i < text.length; i++) { h = ((h << 5) - h + text.charCodeAt(i)) | 0; }
+    return 'fb' + (h >>> 0).toString(16);
+  }
+
+  function profileKey(user) { return PROFILE_PREFIX + user.toLowerCase(); }
+  function readProfile(user) {
+    try { return JSON.parse(localStorage.getItem(profileKey(user)) || 'null'); }
+    catch (e) { return null; }
+  }
+  function writeProfile(user, profile) {
+    localStorage.setItem(profileKey(user), JSON.stringify(profile));
+  }
+
+  // Snapshot every gpa_* key except the auth/profile plumbing itself.
+  function collectState() {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith('gpa_')) continue;
+      if (k.startsWith(PROFILE_PREFIX)) continue;
+      if (NON_PROFILE_KEYS.includes(k)) continue;
+      data[k] = localStorage.getItem(k);
+    }
+    return data;
+  }
+
+  function applyState(data) {
+    if (!data || typeof data !== 'object') return;
+    // Clear existing app keys first so a restored profile doesn't inherit
+    // leftovers from whoever was signed in before.
+    const toRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith('gpa_')) continue;
+      if (k.startsWith(PROFILE_PREFIX)) continue;
+      if (NON_PROFILE_KEYS.includes(k)) continue;
+      toRemove.push(k);
+    }
+    toRemove.forEach((k) => localStorage.removeItem(k));
+    Object.keys(data).forEach((k) => {
+      if (k.startsWith('gpa_') && !k.startsWith(PROFILE_PREFIX) && !NON_PROFILE_KEYS.includes(k)) {
+        localStorage.setItem(k, String(data[k]));
+      }
+    });
+  }
+
+  function saveProgress() {
+    if (!currentUser) return;
+    const profile = readProfile(currentUser);
+    if (!profile) return;
+    profile.data = collectState();
+    profile.updatedAt = Date.now();
+    writeProfile(currentUser, profile);
+  }
+
+  function showLoginMsg(text, isError) {
+    loginMsg.textContent = text;
+    loginMsg.classList.toggle('error', !!isError);
+  }
+
+  function refreshAccountUI() {
+    const who = panel.querySelector('#gpa-account-who');
+    if (who) who.textContent = currentUser ? `Signed in as ${currentUser}` : 'Not signed in';
+  }
+
+  // Re-applies everything a restored profile affects, so a sign-in takes
+  // effect immediately instead of needing a reload.
+  function reapplyAllSettings() {
+    try {
+      const savedTheme = localStorage.getItem(THEME_KEY) || 'matte';
+      const savedCustom = localStorage.getItem(CUSTOM_COLOR_KEY);
+      if (savedCustom) THEMES.custom = { ...THEMES.dark, accent: savedCustom };
+      applyTheme(THEMES[savedTheme] ? savedTheme : 'matte');
+      if (typeof setProviderUI === 'function') setProviderUI(localStorage.getItem(PROVIDER_KEY) || 'gemini');
+      if (typeof setSpeedUI === 'function') setSpeedUI(localStorage.getItem(SPEED_KEY) || 'normal');
+      if (typeof setFontUI === 'function') setFontUI(localStorage.getItem(FONT_KEY) || 'mono');
+      if (typeof setIconUI === 'function') setIconUI(localStorage.getItem(ICON_KEY) || 'dot');
+      if (typeof setLookUI === 'function') setLookUI(localStorage.getItem(ICON_LOOK_KEY) || 'futuristic');
+      if (typeof setColorModeUI === 'function') setColorModeUI(localStorage.getItem(ICON_COLOR_MODE_KEY) || 'theme');
+      if (typeof renderMiniIcon === 'function') renderMiniIcon();
+      if (typeof applyMiniLook === 'function') applyMiniLook();
+      if (typeof applyMiniColorMode === 'function') applyMiniColorMode();
+      if (typeof setParticleUI === 'function') setParticleUI(localStorage.getItem(PARTICLE_KEY) || 'off');
+      if (typeof setParticleStyle === 'function') setParticleStyle(localStorage.getItem(PARTICLE_KEY) || 'off');
+      if (typeof setSizeUI === 'function' && typeof applyPanelSize === 'function') {
+        const sz = localStorage.getItem(PANEL_SIZE_KEY) || 'normal';
+        setSizeUI(PANEL_SIZES[sz] ? sz : 'normal');
+        applyPanelSize(sz);
+      }
+    } catch (e) { /* a restored-but-odd value shouldn't block sign-in */ }
+  }
+
+  function enterApp(user) {
+    currentUser = user;
+    localStorage.setItem(SESSION_KEY, user);
+    loginOverlay.style.display = 'none';
+    refreshAccountUI();
+    reapplyAllSettings();
+    const cloudBin = panel.querySelector('#gpa-cloud-bin');
+    const cloudKey = panel.querySelector('#gpa-cloud-key');
+    if (cloudBin) cloudBin.value = localStorage.getItem(CLOUD_BIN_KEY) || '';
+    if (cloudKey) cloudKey.value = localStorage.getItem(CLOUD_SECRET_KEY) || '';
+  }
+
+  async function doSignIn() {
+    const user = loginUserInput.value.trim();
+    const pin = loginPinInput.value;
+    if (!user || !pin) { showLoginMsg('Enter both a profile name and a PIN.', true); return; }
+    const profile = readProfile(user);
+    if (!profile) { showLoginMsg('No profile by that name here. Use Create, or restore a sync code.', true); return; }
+    const hash = await hashPin(user.toLowerCase(), pin);
+    if (hash !== profile.pinHash) { showLoginMsg('Wrong PIN.', true); return; }
+    applyState(profile.data || {});
+    showLoginMsg('');
+    enterApp(user);
+  }
+
+  async function doSignUp() {
+    const user = loginUserInput.value.trim();
+    const pin = loginPinInput.value;
+    if (!user || !pin) { showLoginMsg('Enter both a profile name and a PIN.', true); return; }
+    if (readProfile(user)) { showLoginMsg('That profile already exists here — sign in instead.', true); return; }
+    const pinHash = await hashPin(user.toLowerCase(), pin);
+    // A brand-new profile starts from whatever is currently set up, so you
+    // don't lose settings you'd already configured before making a profile.
+    writeProfile(user, { user, pinHash, data: collectState(), updatedAt: Date.now() });
+    showLoginMsg('');
+    enterApp(user);
+  }
+
+  panel.querySelector('#gpa-login-btn').addEventListener('click', doSignIn);
+  panel.querySelector('#gpa-signup-btn').addEventListener('click', doSignUp);
+  loginPinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSignIn(); });
+  loginUserInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginPinInput.focus(); });
+
+  // ---- Sync codes (portable, no server involved) ----
+  function encodeSyncCode(payload) {
+    // encodeURIComponent first so non-ASCII (song names, emoji) survives btoa.
+    return btoa(encodeURIComponent(JSON.stringify(payload)));
+  }
+  function decodeSyncCode(code) {
+    return JSON.parse(decodeURIComponent(atob(code.trim())));
+  }
+  function buildSyncPayload() {
+    return { v: 1, user: currentUser || 'export', updatedAt: Date.now(), data: collectState() };
+  }
+
+  panel.querySelector('#gpa-login-restore').addEventListener('click', async () => {
+    const code = prompt('Paste the sync code copied from your other device:');
+    if (!code) return;
+    try {
+      const payload = decodeSyncCode(code);
+      if (!payload || !payload.data) throw new Error('bad payload');
+      const user = loginUserInput.value.trim() || payload.user || 'restored';
+      const pin = loginPinInput.value || '0000';
+      const pinHash = await hashPin(user.toLowerCase(), pin);
+      applyState(payload.data);
+      writeProfile(user, { user, pinHash, data: payload.data, updatedAt: Date.now() });
+      showLoginMsg('');
+      enterApp(user);
+    } catch (e) {
+      showLoginMsg("That doesn't look like a valid sync code.", true);
+    }
+  });
+
+  // Auto-save so progress survives a crash or a closed tab, not just a
+  // clean sign-out.
+  setInterval(saveProgress, 5000);
+  window.addEventListener('beforeunload', saveProgress);
 
   // ---- Games tab -----------------------------------------------------------
   // Game loaders may return either a plain cleanup function (older/simple
@@ -4408,5 +4688,115 @@
   document.addEventListener('webkitfullscreenchange', syncFullscreenLabel);
 
   loadGame('ttt');
+
+  // ---- Account / sync controls in Settings ---------------------------------
+  const syncBox = panel.querySelector('#gpa-sync-box');
+  const cloudMsg = panel.querySelector('#gpa-cloud-msg');
+  const cloudBinInput = panel.querySelector('#gpa-cloud-bin');
+  const cloudKeyInput = panel.querySelector('#gpa-cloud-key');
+
+  panel.querySelector('#gpa-logout-btn').addEventListener('click', () => {
+    saveProgress();
+    currentUser = null;
+    localStorage.removeItem(SESSION_KEY);
+    refreshAccountUI();
+    loginUserInput.value = '';
+    loginPinInput.value = '';
+    showLoginMsg('Signed out — your progress is saved.');
+    loginOverlay.style.display = 'flex';
+  });
+
+  panel.querySelector('#gpa-sync-export').addEventListener('click', () => {
+    saveProgress();
+    const code = encodeSyncCode(buildSyncPayload());
+    syncBox.value = code;
+    syncBox.focus();
+    syncBox.select();
+    try {
+      navigator.clipboard.writeText(code);
+      cloudMsg.textContent = 'Sync code copied — paste it on your other device.';
+    } catch (e) {
+      cloudMsg.textContent = 'Sync code ready above — copy it manually.';
+    }
+  });
+
+  panel.querySelector('#gpa-sync-import').addEventListener('click', () => {
+    const code = syncBox.value.trim();
+    if (!code) { cloudMsg.textContent = 'Paste a sync code into the box first.'; return; }
+    try {
+      const payload = decodeSyncCode(code);
+      if (!payload || !payload.data) throw new Error('bad payload');
+      applyState(payload.data);
+      saveProgress();
+      reapplyAllSettings();
+      cloudMsg.textContent = 'Progress loaded from sync code.';
+    } catch (e) {
+      cloudMsg.textContent = "That doesn't look like a valid sync code.";
+    }
+  });
+
+  // ---- Optional cloud auto-sync (JSONBin) ----
+  // Credentials are entered here at runtime and kept in localStorage on this
+  // device only — deliberately never hard-coded, so a public repo copy of
+  // this script carries no secrets.
+  function cloudCreds() {
+    const bin = (cloudBinInput.value || '').trim();
+    const key = (cloudKeyInput.value || '').trim();
+    if (bin) localStorage.setItem(CLOUD_BIN_KEY, bin);
+    if (key) localStorage.setItem(CLOUD_SECRET_KEY, key);
+    return { bin, key };
+  }
+
+  panel.querySelector('#gpa-cloud-push').addEventListener('click', async () => {
+    const { bin, key } = cloudCreds();
+    if (!bin || !key) { cloudMsg.textContent = 'Enter both a Bin ID and an X-Master-Key.'; return; }
+    saveProgress();
+    cloudMsg.textContent = 'Uploading…';
+    try {
+      const res = await fetch(`https://api.jsonbin.io/v3/b/${encodeURIComponent(bin)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Master-Key': key },
+        body: JSON.stringify(buildSyncPayload())
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      cloudMsg.textContent = `Uploaded at ${new Date().toLocaleTimeString()}.`;
+    } catch (e) {
+      cloudMsg.textContent = 'Upload failed: ' + e.message;
+    }
+  });
+
+  panel.querySelector('#gpa-cloud-pull').addEventListener('click', async () => {
+    const { bin, key } = cloudCreds();
+    if (!bin || !key) { cloudMsg.textContent = 'Enter both a Bin ID and an X-Master-Key.'; return; }
+    cloudMsg.textContent = 'Downloading…';
+    try {
+      const res = await fetch(`https://api.jsonbin.io/v3/b/${encodeURIComponent(bin)}/latest`, {
+        headers: { 'X-Master-Key': key }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const payload = json && (json.record || json);
+      if (!payload || !payload.data) throw new Error('no saved data in that bin');
+      applyState(payload.data);
+      saveProgress();
+      reapplyAllSettings();
+      cloudMsg.textContent = 'Progress downloaded and applied.';
+    } catch (e) {
+      cloudMsg.textContent = 'Download failed: ' + e.message;
+    }
+  });
+
+  // ---- Session restore on load ----
+  // If this browser already had someone signed in, skip straight back in.
+  (function restoreSession() {
+    const savedUser = localStorage.getItem(SESSION_KEY);
+    if (savedUser && readProfile(savedUser)) {
+      enterApp(savedUser);
+    } else {
+      localStorage.removeItem(SESSION_KEY);
+      loginOverlay.style.display = 'flex';
+      refreshAccountUI();
+    }
+  })();
 
 })();
